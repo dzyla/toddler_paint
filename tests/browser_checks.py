@@ -23,17 +23,11 @@ with sync_playwright() as p:
             page.click('#paperNext')
         raise AssertionError(id)
     def choose_tool(key):
-        for _ in range(15):
-            if page.locator(f'[data-tool="{key}"]').is_visible():
-                page.click(f'[data-tool="{key}"]');return
-            page.click('#moreTools')
-        raise AssertionError(key)
+        if page.evaluate('phoneLayout()'):page.click('#phoneTools')
+        page.click(f'[data-tool="{key}"]')
     def choose_color(color):
-        for _ in range(15):
-            if page.locator(f'[data-color="{color}"]').count():
-                page.click(f'[data-color="{color}"]');return
-            page.click('#moreColors')
-        raise AssertionError(color)
+        if page.evaluate('phoneLayout()'):page.click('#phoneColors')
+        page.click(f'[data-color="{color}"]')
     assert page.evaluate('tool')=='crayon'
     choose_tool('fill')
     assert page.evaluate('TRACING.length')==24
@@ -135,6 +129,7 @@ with sync_playwright() as p:
         for key in page.evaluate('TOOL_ORDER'):choose_tool(key)
         for col in page.evaluate('COLORS'):choose_color(col)
         choose_tool('stamp');stamps=set()
+        if page.evaluate('phoneLayout()'):page.click('#phoneColors')
         for _ in range(30):
             stamps.update(page.locator('[data-stamp]').evaluate_all('(els)=>els.map(el=>el.dataset.stamp)'))
             if len(stamps)==24:break
@@ -142,18 +137,19 @@ with sync_playwright() as p:
         assert len(stamps)==24
         for sel in ['#rail','#bottom','#side']:
             assert page.locator(sel).evaluate('(el)=>el.scrollHeight<=el.clientHeight+2 && el.scrollWidth<=el.clientWidth+2'),(width,height,sel)
+        page.evaluate('closeSheets()')
         page.click('#btnPaper')
         for category,expected in [('plain',7),('picture',31),('pattern',10),('trace',24)]:
             page.click(f'[data-category="{category}"]');found=set()
             for _ in range(30):
                 found.update(page.locator('[data-paper]').evaluate_all('(els)=>els.map(el=>el.dataset.paper)'))
                 assert page.locator('#paperCard').evaluate('(el)=>el.scrollHeight<=el.clientHeight+2 && el.scrollWidth<=el.clientWidth+2'),(width,height,category)
-                for control in ['#paperNext','#paperPrev','#paperTabs','.closeSheet']:
+                for control in ['#paperNext','#paperPrev','#paperTabs','#paperSheet .closeSheet']:
                     box=page.locator(control).bounding_box();assert box['x']>=0 and box['x']+box['width']<=width and box['y']>=0 and box['y']+box['height']<=height,(width,height,control,box)
                 if page.locator('#paperNext').is_disabled():break
                 page.click('#paperNext')
             assert len(found)==expected,(category,len(found))
-        page.screenshot(path=f'/tmp/picker-{width}.png');page.click('.closeSheet');page.screenshot(path=f'/tmp/canvas-{width}.png')
+        page.screenshot(path=f'/tmp/picker-{width}.png');page.click('#paperSheet .closeSheet');page.screenshot(path=f'/tmp/canvas-{width}.png')
     # Repeated orientation changes retain marks in newly exposed workspace margins.
     page.set_viewport_size({'width':1280,'height':900});page.wait_for_timeout(250)
     select_paper('white','plain')
@@ -177,8 +173,9 @@ with sync_playwright() as p:
     # Actual touch input, offline.
     context=browser.new_context(viewport={'width':390,'height':844},has_touch=True,is_mobile=True,offline=True)
     touch=context.new_page();touch.goto(URL);touch.locator('#setupDone').tap();touch.wait_for_timeout(200)
-    assert touch.locator('#rail .tool:visible').count()==12
     for key in touch.evaluate('TOOL_ORDER'):
+        touch.locator('#phoneTools').tap()
+        assert touch.locator('#rail .tool:visible').count()==12
         touch.locator(f'[data-tool="{key}"]').tap()
         assert touch.evaluate('tool')==key
     touch.locator('#btnPaper').tap();touch.locator('[data-category="trace"]').tap();touch.locator('#paperNext').tap()

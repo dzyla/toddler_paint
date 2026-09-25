@@ -284,6 +284,41 @@ button:active,button.press{filter:brightness(.9)}
 }
 #grownOptions #side{position:static;display:grid;grid-template-columns:repeat(4,var(--actD));max-height:none;margin-top:16px;justify-content:center}
 #grownOptions #side .b{width:var(--actD);height:var(--actD)}
+/* Phones keep the paper clear; complete choices open in a single-tap tray. */
+#phoneDock{display:none}
+.phone #ui{padding:8px;padding-top:calc(8px + env(safe-area-inset-top));padding-bottom:calc(8px + env(safe-area-inset-bottom));gap:8px;grid-template-rows:auto minmax(0,1fr) auto}
+.phone #status{display:none}
+.phone #topRow{gap:4px}
+.phone #actions{padding:6px;gap:4px}
+.phone #actions #btnRedo{display:none}
+.phone #actions .cap{display:block;font-size:10px}
+.phone #actions .ico{font-size:26px}
+.phone #grown{width:48px;height:56px}
+.phone #actions #btnNext{border-radius:18px;background:#e5ddff;box-shadow:none}
+.phone #actions #btnNext .ico{font-size:26px}
+.phone #phoneDock{position:fixed;left:50%;transform:translateX(-50%);top:calc(var(--app-top) + var(--app-h) - 72px - env(safe-area-inset-bottom));display:flex;grid-column:1/4;grid-row:3;gap:10px;z-index:3;pointer-events:auto;justify-self:center;width:min(calc(100% - 16px),440px)}
+.phone.choosing #phoneDock{z-index:51}
+#phoneDock button{flex:1;min-height:64px;flex-direction:row;gap:12px;border:2px solid #dce1ef;background:#fff;box-shadow:0 3px 12px #23274618;font-weight:800;font-size:15px}
+#phoneDock .ico{font-size:30px}
+#phoneColorDot{width:34px;height:34px;border-radius:10px;border:3px solid white;box-shadow:0 0 0 2px #b7bdd0;display:grid;place-items:center;font-size:24px}
+#phoneDock button[aria-expanded="true"]{border-color:#6554c0;background:#eee9ff}
+#phoneTray{top:var(--app-top);height:var(--app-h);bottom:auto;align-items:end;padding:8px 8px calc(88px + env(safe-area-inset-bottom));background:#14163a66}
+#phoneTray .card{width:max-content;max-width:100%;max-height:100%;overflow:visible;padding:10px;border-radius:24px}
+#phoneTray .sheetHeading{margin-bottom:8px}
+#phoneTray h2{font-size:17px;margin:0}
+#phoneTray #rail,#phoneTray #bottom{position:static;max-height:none;max-width:none;margin:0;padding:6px;border:0;box-shadow:none;background:transparent;width:max-content;overflow:visible}
+#phoneTray .tool{width:var(--toolW);height:var(--toolH);gap:2px;padding:0}
+#phoneTray .tool .ico{font-size:28px}
+#phoneTray .tool .cap{font-size:11px}
+#phoneTray .tool canvas{display:block;max-height:16px}
+#phoneTray .tool.on{transform:none;box-shadow:0 0 0 2px #2f6bff33}
+#phoneTray .st.on{transform:none}
+@media(max-height:500px){
+ .phone #actions{padding:2px}
+ .phone #phoneDock{top:calc(var(--app-top) + var(--app-h) - 64px - env(safe-area-inset-bottom))}
+ .phone #phoneDock button{min-height:56px}
+ .phone #phoneTray{padding-bottom:calc(72px + env(safe-area-inset-bottom))}
+}
 </style>
 </head>
 <body class="allTools" style="--ink:#2f6bff">
@@ -314,8 +349,16 @@ button:active,button.press{filter:brightness(.9)}
   </div>
 
   <div class="panel" id="bottom"></div>
+  <div id="phoneDock" aria-label="Painting choices">
+    <button class="b" id="phoneTools" aria-controls="phoneTray" aria-expanded="false"><span class="ico">🖍️</span><span>Tools</span></button>
+    <button class="b" id="phoneColors" aria-controls="phoneTray" aria-expanded="false"><span id="phoneColorDot"></span><span id="phoneColorLabel">Colors</span></button>
+  </div>
 </div>
 
+<div class="sheet" id="phoneTray" role="dialog" aria-modal="true" aria-labelledby="phoneTrayTitle"><div class="card">
+  <div class="sheetHeading"><h2 id="phoneTrayTitle">Choose a tool</h2><button class="closeSheet" aria-label="Back to drawing">✕</button></div>
+  <div id="phoneChoices"></div>
+</div></div>
 <div class="sheet" id="paperSheet"><div class="card" id="paperCard">
   <div class="sheetHeading"><h2>Pick an adventure</h2><button class="closeSheet" aria-label="Close paper picker">✕</button></div>
   <div id="paperTabs"><button data-category="plain">📄 Blank</button><button data-category="picture">🎨 Color</button><button data-category="pattern">🔷 Patterns</button><button data-category="trace">〰️ Trace</button><button data-category="words">✍️ Words</button></div>
@@ -416,9 +459,22 @@ function applyStep(st){
   r.setProperty('--stIco', st.st+'px');
 }
 
+function phoneLayout(){return viewW()<=600 || (viewH()<=500 && viewW()<=1000);}
+let phoneChoice='tools';
 function fitUI(){
   const H=viewH(), W=viewW(), r=document.documentElement.style;
-  const compact=W<560 && H<=700;
+  const compact=phoneLayout();
+  const dock=document.getElementById('phoneDock');
+  if(dock.parentElement!==document.body)document.body.appendChild(dock);
+  const changed=document.body.classList.contains('phone')!==compact;
+  document.body.classList.toggle('phone',compact);
+  if(changed)closeSheets();
+  const choiceParent=document.getElementById(compact?'phoneChoices':'ui');
+  for(const id of ['rail','bottom']){
+    const panel=document.getElementById(id);
+    if(panel.parentElement!==choiceParent)choiceParent.appendChild(panel);
+    panel.hidden=compact && (id==='rail')!==(phoneChoice==='tools');
+  }
   const sidePanel=document.getElementById('side');
   const nextPicture=document.getElementById('btnNext');
   const target=document.getElementById(compact?'grownOptions':'ui');
@@ -429,7 +485,7 @@ function fitUI(){
   }else if(nextPicture.parentElement!==sidePanel)sidePanel.prepend(nextPicture);
   r.setProperty('--app-h',H+'px');
   r.setProperty('--app-top',Math.round(vp ? vp.offsetTop : 0)+'px');
-  applyStep((W < 560 && H < 700) || H < 500 ? {toolW:56,toolH:56,sw:48,act:56,ico:26,cap:10,st:32} : W < 560 || H < 500 ? {toolW:64,toolH:64,sw:56,act:56,ico:28,cap:11,st:32} :
+  applyStep(compact ? {toolW:56,toolH:64,sw:56,act:56,ico:28,cap:11,st:32} :
     {toolW:96,toolH:88,sw:76,act:80,ico:34,cap:13,st:38});
 }
 
@@ -460,6 +516,10 @@ function drawingBounds(){
   const railBox=rail.getBoundingClientRect();
   const paletteBox=bottom.getBoundingClientRect();
   const top=document.getElementById('topRow').getBoundingClientRect().bottom-origin+8;
+  if(phoneLayout()){
+    const lower=document.getElementById('phoneDock').getBoundingClientRect().top-origin-8;
+    return {x:8,y:top,width:viewW()-16,height:Math.max(40,lower-top)};
+  }
   const horizontal=viewW()<=820 && viewH()>=500;
   const left=horizontal?8:railBox.right+8;
   const sidePanel=document.getElementById('side');
@@ -1714,11 +1774,13 @@ function updateToolPage(){
   const height=parseFloat(st.getPropertyValue('--toolH'));
   const available=viewH()-document.getElementById('topRow').offsetHeight-Math.max(bottom.offsetHeight,70)-60;
   const rows=Math.max(1,Math.floor((available+7)/(height+7)));
-  const columns=horizontal?Math.max(1,Math.floor((viewW()-29)/(width+7))):Math.ceil(TOOL_ORDER.length/rows);
+  const maxColumns=Math.max(1,Math.floor((viewW()-56)/(width+7)));
+  const columns=phoneLayout()?Math.ceil(TOOL_ORDER.length/Math.ceil(TOOL_ORDER.length/maxColumns)):
+    horizontal?Math.max(1,Math.floor((viewW()-29)/(width+7))):Math.ceil(TOOL_ORDER.length/rows);
   rail.style.gridTemplateColumns=`repeat(${columns},${width}px)`;
   for(const key of TOOL_ORDER)toolBtn[key].hidden=false;
 }
-forgiving(rail, '.tool', el => setTool(el.dataset.tool));
+forgiving(rail, '.tool', el => {setTool(el.dataset.tool);if(phoneLayout())closeSheets();});
 
 /* --- live sample stroke inside every tool button --- */
 function drawSample(key){
@@ -1809,7 +1871,7 @@ function buildBottom(){
   const count=tool==='stamp'?STAMPS.length:COLORS.length;
   const sw=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--swD'));
   const uiStyle=getComputedStyle(document.getElementById('ui')), panelStyle=getComputedStyle(bottom);
-  const inset=parseFloat(uiStyle.paddingLeft)+parseFloat(uiStyle.paddingRight)+parseFloat(panelStyle.paddingLeft)+parseFloat(panelStyle.paddingRight)+2;
+  const inset=phoneLayout()?56:parseFloat(uiStyle.paddingLeft)+parseFloat(uiStyle.paddingRight)+parseFloat(panelStyle.paddingLeft)+parseFloat(panelStyle.paddingRight)+2;
   const columns=Math.min(COLORS.length,Math.max(2,Math.floor((viewW()-inset+7)/(sw+7))));
   const rows=Math.ceil(COLORS.length/columns);
   bottom.style.gridTemplateRows=`repeat(${rows},${sw}px)`;
@@ -1839,10 +1901,12 @@ function buildBottom(){
     const more=document.createElement('button');more.className='moreButton';more.id='moreColors';more.style.width=sw+'px';more.style.height=sw+'px';more.textContent='More ▶';more.setAttribute('aria-label',tool==='stamp'?'More stamps':'More colors');
     more.addEventListener('click',()=>{if(activeId!==null)return;palettePage++;buildBottom();});bottom.appendChild(more);
   }
+  updatePhoneDock();
 }
 forgiving(bottom, '.sw,.st', el => {
   if (el.dataset.color) setColor(el.dataset.color);
   else setStamp(el.dataset.stamp);
+  if(phoneLayout())closeSheets();
 });
 
 function setColor(col){
@@ -1964,12 +2028,32 @@ document.getElementById('gMirror').addEventListener('click',()=>{document.getEle
 for(const el of document.querySelectorAll('.size'))el.setAttribute('aria-label',el.dataset.size+' brush');
 
 
+function updatePhoneDock(){
+  document.querySelector('#phoneTools .ico').textContent=BRUSHES[tool].ico;
+  document.getElementById('phoneTools').setAttribute('aria-label','Tools: '+BRUSHES[tool].name);
+  const dot=document.getElementById('phoneColorDot');dot.style.background=tool==='stamp'?'#f2f4fa':color;dot.textContent=tool==='stamp'?stampChar:'';
+  document.getElementById('phoneColorLabel').textContent=tool==='stamp'?'Stamps':'Colors';
+  const open=document.getElementById('phoneTray').classList.contains('open');
+  document.body.classList.toggle('choosing',open);
+  document.getElementById('phoneTools').setAttribute('aria-expanded',String(open&&phoneChoice==='tools'));
+  document.getElementById('phoneColors').setAttribute('aria-expanded',String(open&&phoneChoice==='colors'));
+}
+function openPhoneChoices(choice){
+  if(activeId!==null)return;
+  if(document.getElementById('phoneTray').classList.contains('open') && phoneChoice===choice){closeSheets();return;}
+  phoneChoice=choice;
+  rail.hidden=choice!=='tools';bottom.hidden=choice!=='colors';
+  document.getElementById('phoneTrayTitle').textContent=choice==='tools'?'Choose a tool':tool==='stamp'?'Choose a stamp':'Choose a color';
+  openSheet('phoneTray');updatePhoneDock();
+}
+document.getElementById('phoneTools').addEventListener('click',()=>openPhoneChoices('tools'));
+document.getElementById('phoneColors').addEventListener('click',()=>openPhoneChoices('colors'));
 /* --- sheets --- */
 function openSheet(id){ finish();closeSheets(); document.getElementById(id).classList.add('open');if(id==='paperSheet')buildPaperSheet(); }
-function closeSheets(){ document.querySelectorAll('.sheet').forEach(s => s.classList.remove('open')); }
+function closeSheets(){ document.querySelectorAll('.sheet').forEach(s => s.classList.remove('open'));updatePhoneDock(); }
 function sheetOpen(){ return !!document.querySelector('.sheet.open'); }
 document.querySelectorAll('.sheet').forEach(s => {
-  s.addEventListener('pointerdown', e => { if (e.target === s) closeSheets(); });
+  s.addEventListener('pointerdown', e => { if (e.target === s){e.preventDefault();closeSheets();} });
 });
 
 /* --- grown-up badge, hold to open --- */
