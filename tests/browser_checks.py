@@ -34,6 +34,8 @@ with sync_playwright() as p:
                 page.click(f'[data-color="{color}"]');return
             page.click('#moreColors')
         raise AssertionError(color)
+    assert page.evaluate('tool')=='crayon'
+    choose_tool('fill')
     assert page.evaluate('TRACING.length')==24
     # Fullscreen-sized paper, including previously unused margins.
     r=page.locator('#page').bounding_box()

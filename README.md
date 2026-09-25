@@ -22,12 +22,13 @@ The optional tests are separate from the standalone app. With Python, Playwright
 
 ```sh
 python tests/browser_checks.py
+python tests/touch_checks.py
 ```
 
 Checks cover bucket boundaries/recoloring, page undo/redo, generated page restoration, tracing, resize preservation, accidental tool changes during drawing, autosave, the parent hold, PNG download, every brush/template, continuous buildup for every drawing tool, simulated pressed-pen crayon input, smooth outline edges, isolated pattern fills, native Retina guide resolution, uniform scaling across repeated rotations, retained workspace margins, consistent preview blending, and four viewport layouts with no scrolling in child-facing controls or page pickers. Real-device fullscreen, operating-system gestures, and stylus pressure still need device testing.
 
 ## Touch layouts and publishing
 
-Laptop and tablet controls use 80px action buttons, 96px-wide tools, and 76px color tiles. Phones use targets of at least 56px, with tools along the bottom; short landscape screens use a compact arrangement. The two-row palette shows all 14 colors on larger screens and large paged tiles on phones. A check mark identifies the selected color. Pen and touch taps tolerate up to 28px of movement; drawing still blocks accidental tool changes. New page and Clean remain undoable.
+Crayon is selected when the app opens. Laptop and tablet controls use 80px action buttons, 96px-wide tools, and 76px color tiles. Phones use targets of at least 56px, with tools along the bottom; short landscape screens use a compact arrangement. The two-row palette shows all 14 colors on larger screens and large paged tiles on phones. A check mark identifies the selected color. Pen and touch taps tolerate up to 28px of movement; drawing still blocks accidental tool changes. New page and Clean remain undoable.
 
 The GitHub Actions workflow publishes the standalone app on each push to `main`. In repository Settings → Pages, choose **GitHub Actions** as the source. The intended address is https://dzyla.github.io/toddler_paint/. `index.html` also opens the app when serving this repository directly.
