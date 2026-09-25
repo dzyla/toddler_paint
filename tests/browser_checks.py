@@ -177,7 +177,10 @@ with sync_playwright() as p:
     # Actual touch input, offline.
     context=browser.new_context(viewport={'width':390,'height':844},has_touch=True,is_mobile=True,offline=True)
     touch=context.new_page();touch.goto(URL);touch.locator('#setupDone').tap();touch.wait_for_timeout(200)
-    for _ in range(4):touch.locator('#moreTools').tap()
+    assert touch.locator('#rail .tool:visible').count()==12
+    for key in touch.evaluate('TOOL_ORDER'):
+        touch.locator(f'[data-tool="{key}"]').tap()
+        assert touch.evaluate('tool')==key
     touch.locator('#btnPaper').tap();touch.locator('[data-category="trace"]').tap();touch.locator('#paperNext').tap()
     assert touch.locator('#paperCard').evaluate('(el)=>el.scrollHeight<=el.clientHeight+2')
     context.close()

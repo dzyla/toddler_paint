@@ -92,7 +92,7 @@ canvas.layer{position:fixed;left:0;top:var(--app-top);display:block;width:100%;h
 .size.on{background:#fff;box-shadow:0 0 0 4px rgba(47,107,255,.26);}
 .size.on i{background:var(--ink);}
 
-/* the big cycle paddle: one target, tap it again and again */
+/* One tap advances to another familiar picture. */
 #btnNext{width:calc(var(--actD) * 1.15);height:calc(var(--actD) * 1.15);border-radius:50%;
   background:linear-gradient(160deg,#fff,#dde6ff);box-shadow:0 0 0 3px #fff,0 6px 16px rgba(10,15,45,.28);}
 #btnNext .ico{font-size:clamp(22px,3.4vmin,30px);}
@@ -258,7 +258,7 @@ button:disabled{opacity:.3!important;cursor:default}
 .sw.on{transform:none;border-color:#232746;box-shadow:inset 0 0 0 2px white}
 .colorCheck{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:white;color:#232746;font-size:23px;font-weight:bold;margin:auto}
 button{touch-action:manipulation}
-button:active{filter:brightness(.9)}
+button:active,button.press{filter:brightness(.9)}
 .closeSheet{min-width:56px;min-height:56px}
 #paperTabs button,#paperPager button{min-height:56px}
 @media(max-width:560px){
@@ -270,6 +270,20 @@ button:active{filter:brightness(.9)}
  #rail .tool{height:var(--toolH)}#side{grid-template-columns:repeat(3,var(--actD))}
  #side{align-self:start}#bottom{padding:6px 12px}#actions .ico{font-size:26px}
 }
+#rail{display:grid;gap:7px;align-content:center;justify-content:center}
+@media(max-height:500px){
+ #ui{grid-template-rows:auto minmax(0,1fr) auto}
+ #rail{grid-column:1;grid-row:2;justify-self:start;max-width:100%}
+ #bottom{grid-row:3}
+ #side{align-self:center}
+}
+@media(max-width:560px) and (max-height:700px){
+ #actions #btnRedo{display:none}
+ #actions #btnNext{border-radius:18px;background:#e5ddff;box-shadow:none}
+ #actions #btnNext .ico{font-size:26px}
+}
+#grownOptions #side{position:static;display:grid;grid-template-columns:repeat(4,var(--actD));max-height:none;margin-top:16px;justify-content:center}
+#grownOptions #side .b{width:var(--actD);height:var(--actD)}
 </style>
 </head>
 <body class="allTools" style="--ink:#2f6bff">
@@ -292,7 +306,7 @@ button:active{filter:brightness(.9)}
   <div class="panel" id="rail"></div>
 
   <div class="panel" id="side">
-    <button class="b" id="btnNext"><span class="ico">👉</span></button>
+    <button class="b" id="btnNext" aria-label="Next picture"><span class="ico">🖼️</span><span class="cap">Next picture</span></button>
     <button class="b size" data-size="small"><i style="width:8px;height:8px"></i></button>
     <button class="b size on" data-size="medium"><i style="width:16px;height:16px"></i></button>
     <button class="b size" data-size="large"><i style="width:26px;height:26px"></i></button>
@@ -318,11 +332,13 @@ button:active{filter:brightness(.9)}
     <button class="b" id="gSound"><span class="ico">🔊</span><span class="cap">Sound on</span></button>
     <button class="b" id="gFull"><span class="ico">⛶</span><span class="cap">Full screen</span></button>
     <button class="b" id="gLock"><span class="ico">🔒</span><span class="cap">Kid lock on</span></button>
+    <button class="b" id="gRedo"><span class="ico">↪️</span><span class="cap">Redo</span></button>
+    <button class="b" id="gMirror"><span class="ico">🦋</span><span class="cap">Mirror drawing</span></button>
     <button class="b" id="gSetup"><span class="ico">🛠️</span><span class="cap">Set up</span></button>
-    <button class="b" id="gTools"><span class="ico">🧰</span><span class="cap">Simple tools</span></button>
     <button class="b" id="gWipe"><span class="ico">🗑️</span><span class="cap">Erase all</span></button>
     <button class="b" id="gClose"><span class="ico">✅</span><span class="cap">Back to art</span></button>
   </div>
+  <div id="grownOptions"></div>
   <p class="hint">Hold the padlock for three seconds to get back here. Child mode reduces interruptions; it cannot lock your device or prevent system shortcuts.</p>
   <p class="hint" id="lockNote" style="color:#232746;background:#f2f4fa;border-radius:14px;padding:10px 12px"></p>
 </div></div>
@@ -402,9 +418,18 @@ function applyStep(st){
 
 function fitUI(){
   const H=viewH(), W=viewW(), r=document.documentElement.style;
+  const compact=W<560 && H<=700;
+  const sidePanel=document.getElementById('side');
+  const nextPicture=document.getElementById('btnNext');
+  const target=document.getElementById(compact?'grownOptions':'ui');
+  if(sidePanel.parentElement!==target)target.appendChild(sidePanel);
+  if(compact){
+    const actionsPanel=document.getElementById('actions');
+    if(nextPicture.parentElement!==actionsPanel)actionsPanel.insertBefore(nextPicture,document.getElementById('btnPaper'));
+  }else if(nextPicture.parentElement!==sidePanel)sidePanel.prepend(nextPicture);
   r.setProperty('--app-h',H+'px');
   r.setProperty('--app-top',Math.round(vp ? vp.offsetTop : 0)+'px');
-  applyStep(W < 560 || H < 500 ? {toolW:64,toolH:64,sw:56,act:56,ico:28,cap:11,st:32} :
+  applyStep((W < 560 && H < 700) || H < 500 ? {toolW:56,toolH:56,sw:48,act:56,ico:26,cap:10,st:32} : W < 560 || H < 500 ? {toolW:64,toolH:64,sw:56,act:56,ico:28,cap:11,st:32} :
     {toolW:96,toolH:88,sw:76,act:80,ico:34,cap:13,st:38});
 }
 
@@ -430,25 +455,39 @@ function placeArtwork(image,width,height){
   // Center old workspace pixels without changing their world-space proportions.
   actx.drawImage(image,(vw-width)/2,(vh-height)/2,width,height);
 }
+function drawingBounds(){
+  const origin=vp?vp.offsetTop:0;
+  const railBox=rail.getBoundingClientRect();
+  const paletteBox=bottom.getBoundingClientRect();
+  const top=document.getElementById('topRow').getBoundingClientRect().bottom-origin+8;
+  const horizontal=viewW()<=820 && viewH()>=500;
+  const left=horizontal?8:railBox.right+8;
+  const sidePanel=document.getElementById('side');
+  const right=sidePanel.parentElement.id==='ui'?sidePanel.getBoundingClientRect().left-8:viewW()-8;
+  const lower=(horizontal?railBox.top:paletteBox.top)-origin-8;
+  return {x:left,y:top,width:Math.max(40,right-left),height:Math.max(40,lower-top)};
+}
 function sizeLayers(){
-  finish();fitUI();
-  if(!vw){designWidth=1000;designHeight=Math.round(1000*viewH()/viewW());setDocumentSize(designWidth,designHeight);}
-  viewScale=Math.min(viewW()/designWidth,viewH()/designHeight);
+  finish();fitUI();buildBottom();updateToolPage();
+  const area=drawingBounds();
+  if(!vw){designWidth=1000;designHeight=Math.round(1000*area.height/area.width);setDocumentSize(designWidth,designHeight);}
+  viewScale=Math.min(area.width/designWidth,area.height/designHeight);
   // Expand the retained workspace when an orientation exposes new margins.
   // Never crop it or shrink it: drawings in those margins survive future rotations.
-  const width=Math.max(vw,Math.ceil(viewW()/viewScale));
-  const height=Math.max(vh,Math.ceil(viewH()/viewScale));
+  const centerX=area.x+area.width/2,centerY=area.y+area.height/2;
+  const width=Math.max(vw,Math.ceil(2*Math.max(centerX,viewW()-centerX)/viewScale));
+  const height=Math.max(vh,Math.ceil(2*Math.max(centerY,viewH()-centerY)/viewScale));
   const ratio=backingDensity(width,height);
   if(width!==vw||height!==vh||Math.abs(ratio-dpr)>.01){
     if(!resizeSource||resizeSource.revision!==artRevision)resizeSource={image:copyOf(art),width:vw,height:vh,revision:artRevision};
     setDocumentSize(width,height,ratio);placeArtwork(resizeSource.image,resizeSource.width,resizeSource.height);
   }
-  viewLeft=(viewW()-vw*viewScale)/2;viewTop=(viewH()-vh*viewScale)/2;
+  viewLeft=centerX-vw*viewScale/2;viewTop=centerY-vh*viewScale/2;
   Object.assign(document.getElementById('page').style,{width:viewW()+'px',height:viewH()+'px',left:'0px',top:'0px'});
   for(const c of [paper,art,scratch,document.getElementById('live')]){
     Object.assign(c.style,{width:vw*viewScale+'px',height:vh*viewScale+'px',left:viewLeft+'px',top:viewTop+'px',right:'auto',bottom:'auto'});
   }
-  drawPaper();updateToolPage();buildBottom();
+  drawPaper();
   if(document.getElementById('paperSheet').classList.contains('open'))buildPaperSheet();
 }
 
@@ -969,7 +1008,7 @@ const BRUSHES = {
   marker : {ico:'🖊️',  name:'Marker',  kind:'dab',  base:30, flow:1, gap:s=>s/18, mix:true},
   paint  : {ico:'🎨', name:'Paint',   kind:'dab',  base:54, flow:1, gap:s=>s/12, mix:true, drip:true},
   spray  : {ico:'💨', name:'Spray',   kind:'dab',  base:58, flow:1, gap:s=>s/7,  mix:true, drip:true},
-  rainbow: {ico:'🌈', name:'Rainbow', kind:'dab', base:26, flow:1, gap:s=>s/10, mix:true},
+  rainbow: {ico:'🌈', name:'Rainbow', kind:'dab', base:26, flow:1, gap:s=>s/10},
   neon   : {ico:'💡', name:'Neon',    kind:'dab', base:16, flow:1, gap:s=>s/8},
   glitter: {ico:'✨', name:'Glitter', kind:'dab',  base:32, flow:1,  gap:s=>s/3.2, drip:true},
   bubbles: {ico:'🫧', name:'Bubbles', kind:'dab',  base:48, flow:1, gap:s=>s*.8},
@@ -979,10 +1018,10 @@ const BRUSHES = {
 };
 const TOOL_ORDER = Object.keys(BRUSHES);
 
-const COLORS = ['#e53935','#f4511e','#fb8c00','#fdd835','#7cb342','#00c853','#00bcd4',
-                '#1e88e5','#3949ab','#8e24aa','#ec407a','#8d6e63','#212121','#ffffff'];
+const COLORS = ['#e53935','#fdd835','#1e88e5','#00c853','#8e24aa','#ec407a','#212121',
+                '#ffffff','#fb8c00','#8d6e63','#00bcd4','#7cb342','#3949ab','#f4511e'];
 
-const COLOR_NAMES=['Red','Red orange','Orange','Yellow','Light green','Green','Turquoise','Blue','Indigo','Purple','Pink','Brown','Black','White'];
+const COLOR_NAMES=['Red','Yellow','Blue','Green','Purple','Pink','Black','White','Orange','Brown','Turquoise','Light green','Indigo','Red orange'];
 
 const STAMPS = ['⭐','❄️','💖','🌈','🦋','🐱','🐶','🐟','🦕','🦄','🐢','🐝',
                 '🌸','🍀','🍄','🍎','🍦','🎈','⚽','🚗','🚀','🌞','🌙','⚡'];
@@ -1071,9 +1110,10 @@ const DAB = {
     c.restore();
   },
   rainbow(c,x,y,size){
-    stroke.hue=(stroke.hue+size*.055)%360;
-    c.save();c.globalCompositeOperation='multiply';c.globalAlpha=.13;
-    c.fillStyle=`hsl(${stroke.hue},82%,62%)`;
+    stroke.hue=(stroke.hue+size*.08)%360;
+    // Bright layers replace color gently instead of multiplying into muddy darks.
+    c.save();c.globalCompositeOperation='source-over';c.globalAlpha=.09;
+    c.fillStyle=`hsl(${stroke.hue},90%,68%)`;
     c.beginPath();c.arc(x,y,size/2,0,TAU);c.fill();c.restore();
   },
   neon(c,x,y,size,col){
@@ -1607,7 +1647,16 @@ for(const id of ['actions','rail','bottom','side']){
   const panel=document.getElementById(id);
   let tap=null;
   panel.addEventListener('pointerdown',e=>{
-    const button=e.target.closest('button');
+    let button=e.target.closest('button');
+    if(!button){
+      let nearest=12;
+      for(const candidate of panel.querySelectorAll('button:not(:disabled):not([hidden])')){
+        const r=candidate.getBoundingClientRect();
+        if(!r.width||!r.height)continue;
+        const distance=Math.hypot(Math.max(r.left-e.clientX,0,e.clientX-r.right),Math.max(r.top-e.clientY,0,e.clientY-r.bottom));
+        if(distance<nearest){nearest=distance;button=candidate;}
+      }
+    }
     if(e.pointerType==='mouse'||!button||button.disabled||activeId!==null||tap)return;
     tap={button,id:e.pointerId,x:e.clientX,y:e.clientY};
     button.setPointerCapture(e.pointerId);
@@ -1645,7 +1694,7 @@ function forgiving(container, sel, pick){
 const rail   = document.getElementById('rail');
 const bottom = document.getElementById('bottom');
 const toolBtn = {};
-let toolPage=0,palettePage=0;
+let palettePage=0;
 
 for (const key of TOOL_ORDER){
   const b = BRUSHES[key];
@@ -1658,24 +1707,16 @@ for (const key of TOOL_ORDER){
   rail.appendChild(el);
   toolBtn[key] = el;
 }
-const moreTools=document.createElement('button');moreTools.className='moreButton';moreTools.id='moreTools';moreTools.textContent='🧰 More';moreTools.setAttribute('aria-label','More tools');rail.appendChild(moreTools);
-moreTools.addEventListener('click',()=>{if(activeId!==null)return;toolPage++;updateToolPage();});
-function updateToolPage(reveal=false){
-  const keys=document.body.classList.contains('allTools')?TOOL_ORDER:TOOL_ORDER.filter(k=>['crayon','pencil','rainbow','stamp','fill','eraser'].includes(k));
-  const horizontal=viewW()<=820;
+function updateToolPage(){
+  const horizontal=viewW()<=820 && viewH()>=500;
   const st=getComputedStyle(document.documentElement);
-  const dimension=parseFloat(st.getPropertyValue(horizontal?'--toolW':'--toolH'));
-  const available=horizontal?viewW()-36:viewH()-document.getElementById('topRow').offsetHeight-Math.max(bottom.offsetHeight,70)-60;
-  const capacity=Math.max(1,Math.floor((available+7)/(dimension+7))-1);
-  const pages=Math.ceil(keys.length/capacity);
-  if(reveal && keys.includes(tool))toolPage=Math.floor(keys.indexOf(tool)/capacity);
-  toolPage%=pages;
-  const shown=keys.slice(toolPage*capacity,(toolPage+1)*capacity);
-  for(const key of TOOL_ORDER)toolBtn[key].hidden=!shown.includes(key);
-  moreTools.hidden=pages<=1;
-  moreTools.style.width=horizontal?dimension+'px':'var(--toolW)';
-  moreTools.style.height=horizontal?'var(--toolH)':dimension+'px';
-  moreTools.textContent='🧰 '+(toolPage+1)+'/'+pages+' ▶';
+  const width=parseFloat(st.getPropertyValue('--toolW'));
+  const height=parseFloat(st.getPropertyValue('--toolH'));
+  const available=viewH()-document.getElementById('topRow').offsetHeight-Math.max(bottom.offsetHeight,70)-60;
+  const rows=Math.max(1,Math.floor((available+7)/(height+7)));
+  const columns=horizontal?Math.max(1,Math.floor((viewW()-29)/(width+7))):Math.ceil(TOOL_ORDER.length/rows);
+  rail.style.gridTemplateColumns=`repeat(${columns},${width}px)`;
+  for(const key of TOOL_ORDER)toolBtn[key].hidden=false;
 }
 forgiving(rail, '.tool', el => setTool(el.dataset.tool));
 
@@ -1749,9 +1790,6 @@ function setTool(key){
   for (const k in toolBtn){toolBtn[k].classList.toggle('on', k === key);toolBtn[k].setAttribute('aria-pressed',k===key);}
   document.getElementById('stTool').textContent = key === 'stamp' ? stampChar : BRUSHES[key].ico;
   document.getElementById('stName').textContent = BRUSHES[key].name;
-  const nx = TOOL_ORDER[(TOOL_ORDER.indexOf(key)+1) % TOOL_ORDER.length];
-  document.getElementById('btnNext').querySelector('.ico').textContent = BRUSHES[nx].ico;
-  document.getElementById('btnNext').setAttribute('aria-label','Next tool: '+BRUSHES[nx].name);
   buildBottom();
   updateToolPage(true);
   chime(320 + TOOL_ORDER.indexOf(key)*38, 'triangle');
@@ -1760,7 +1798,9 @@ function setTool(key){
 document.getElementById('btnNext').addEventListener('click', e => {
   if(activeId!==null)return;
   e.preventDefault();
-  setTool(TOOL_ORDER[(TOOL_ORDER.indexOf(tool)+1) % TOOL_ORDER.length]);
+  const favorites=['white','butterfly','fish','cat','dino','flower','rocket'];
+  choosePaper({dataset:{paper:favorites[(favorites.indexOf(paperId)+1)%favorites.length]}});
+  toast('New picture · Undo brings it back');
 });
 
 /* --- bottom bar: colours, or stamps while the stamp tool is on --- */
@@ -1768,9 +1808,12 @@ function buildBottom(){
   bottom.innerHTML = '';
   const count=tool==='stamp'?STAMPS.length:COLORS.length;
   const sw=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--swD'));
-  const columns=Math.max(2,Math.floor((viewW()-48)/(sw+7)));
-  const rows=viewH()>500?2:1;
-  const capacity=columns*rows>=count?count:columns*rows-1;
+  const uiStyle=getComputedStyle(document.getElementById('ui')), panelStyle=getComputedStyle(bottom);
+  const inset=parseFloat(uiStyle.paddingLeft)+parseFloat(uiStyle.paddingRight)+parseFloat(panelStyle.paddingLeft)+parseFloat(panelStyle.paddingRight)+2;
+  const columns=Math.min(COLORS.length,Math.max(2,Math.floor((viewW()-inset+7)/(sw+7))));
+  const rows=Math.ceil(COLORS.length/columns);
+  bottom.style.gridTemplateRows=`repeat(${rows},${sw}px)`;
+  const capacity=tool==='stamp' ? (columns*rows>=count?count:columns*rows-1) : count;
   bottom.style.gridTemplateColumns=`repeat(${Math.min(columns,count)},${sw}px)`;
   const pages=Math.ceil(count/capacity);palettePage%=pages;
   if (tool === 'stamp'){
@@ -1894,11 +1937,10 @@ document.getElementById('paperNext').addEventListener('click',()=>{paperPage++;b
 buildPaperSheet();
 const choosePaper = el => {
   finish();history_.push();
-  designWidth=1000;designHeight=Math.round(1000*viewH()/viewW());
+  const area=drawingBounds();
+  designWidth=1000;designHeight=Math.round(1000*area.height/area.width);
   setDocumentSize(designWidth,designHeight);sizeLayers();
   paperId = el.dataset.paper;
-  if(paperId.startsWith('trace-'))setTool('pencil');
-  else if(PICTURE_ART[paperId])setTool('fill');
   drawPaper();
   document.body.style.background = paperId === 'night' ? '#0d0f24' : '#14163a';
   buildPaperSheet(); closeSheets(); chime(520,'sine'); scheduleSave();
@@ -1917,11 +1959,8 @@ document.getElementById('surprise').addEventListener('click',()=>{
   pageSeed=(Math.random()*4294967295)>>>0;drawPaper();buildPaperSheet();scheduleSave();
 });
 document.querySelectorAll('.closeSheet').forEach(b=>b.addEventListener('click',closeSheets));
-document.getElementById('gTools').addEventListener('click',()=>{
-  const on=document.body.classList.toggle('allTools');
-  document.querySelector('#gTools .cap').textContent=on?'Simple tools':'Show all tools';
-  sizeLayers();
-});
+document.getElementById('gRedo').addEventListener('click',()=>{history_.redo();closeSheets();});
+document.getElementById('gMirror').addEventListener('click',()=>{document.getElementById('btnMirror').click();closeSheets();});
 for(const el of document.querySelectorAll('.size'))el.setAttribute('aria-label',el.dataset.size+' brush');
 
 
