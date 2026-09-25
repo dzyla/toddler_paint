@@ -1,0 +1,2231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#14163a">
+<title>Art Studio</title>
+<style>
+/* ==================================================================
+   Art Studio -- offline single-file drawing app for young children
+
+   #paper provides the background. #art retains paint in world coordinates;
+   #scratch accumulates individual pigment deposits. #live previews the same
+   composition that will be committed. #outlines redraws immutable vector
+   guides at native screen resolution. All workspace scaling is uniform.
+=================================================================== */
+
+*{box-sizing:border-box;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+  -webkit-tap-highlight-color:transparent;touch-action:none;}
+
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;overscroll-behavior:none;
+  background:#14163a;font-family:ui-rounded,"SF Pro Rounded",Nunito,"Segoe UI Variable",Verdana,sans-serif;}
+
+:root{
+  --app-h:100dvh; --app-top:0px;
+  --toolW:90px; --toolH:80px; --swD:58px; --actD:62px;
+  --toolIco:23px; --toolCap:11px; --stIco:27px;
+}
+canvas.layer{position:fixed;left:0;top:var(--app-top);display:block;width:100%;height:var(--app-h);}
+#art,#scratch{pointer-events:none;}
+#scratch{pointer-events:none;}
+#hit{position:fixed;left:0;top:var(--app-top);width:100%;height:var(--app-h);cursor:crosshair;}
+
+/* ---------------- shell ---------------- */
+#ui{position:fixed;left:0;top:var(--app-top);width:100%;height:var(--app-h);pointer-events:none;display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;grid-template-rows:auto minmax(0,1fr) auto;gap:6px;
+  padding:calc(6px + env(safe-area-inset-top)) 8px 8px 8px;}
+
+.panel{pointer-events:auto;background:rgba(255,255,255,.94);backdrop-filter:blur(12px);
+  border-radius:24px;box-shadow:0 8px 26px rgba(10,15,45,.24);padding:10px;
+  display:flex;gap:7px;align-items:center;}
+
+#topRow{grid-column:1/4;grid-row:1;display:flex;justify-content:space-between;
+  align-items:flex-start;gap:8px;pointer-events:none;flex-wrap:wrap;}
+#actions{flex-wrap:wrap;justify-content:flex-end;}
+#rail{grid-column:1;grid-row:2;align-self:center;flex-direction:column;flex-wrap:wrap;
+  min-height:0;max-height:100%;align-content:flex-start;}
+#side{grid-column:3;grid-row:2;align-self:center;flex-direction:column;min-height:0;flex-wrap:wrap;
+  max-height:100%;align-content:flex-end;}
+#bottom{grid-column:1/4;grid-row:3;justify-self:center;max-width:100%;flex-wrap:wrap;
+  justify-content:center;margin-bottom:env(safe-area-inset-bottom);}
+
+/* ---------------- buttons ---------------- */
+.b{pointer-events:auto;border:0;background:#eef1f7;border-radius:18px;display:flex;
+  flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;
+  transition:transform .09s ease,background .15s,box-shadow .15s;font:inherit;color:#232746;
+  line-height:1;padding:0;}
+.b.press{transform:scale(.9);}
+.b .ico{font-size:clamp(19px,3vmin,26px);}
+.b .cap{font-size:10px;font-weight:800;letter-spacing:.2px;opacity:.62;}
+.act{width:var(--actD);height:var(--actD);}
+
+/* tool button: icon, live stroke sample, name */
+.tool{width:var(--toolW);height:var(--toolH);position:relative;
+  overflow:hidden;background:#f2f4fa;border:3px solid transparent;}
+.tool .ico{font-size:var(--toolIco);}
+.tool canvas{width:84%;aspect-ratio:180/40;max-height:20px;pointer-events:none;}
+.tool .cap{font-size:var(--toolCap);opacity:.7;}
+.tool.on{background:#fff;border-color:var(--ink);transform:scale(1.05);
+  box-shadow:0 0 0 5px rgba(47,107,255,.18),0 8px 18px rgba(10,15,45,.2);}
+.tool.on .cap{opacity:1;}
+.tool.on::after{content:"";position:absolute;top:5px;right:6px;width:10px;height:10px;
+  border-radius:50%;background:var(--ink);}
+
+/* colour swatch */
+.sw{width:var(--swD);height:var(--swD);border-radius:50%;
+  border:4px solid #fff;box-shadow:0 3px 8px rgba(10,15,45,.25);cursor:pointer;
+  pointer-events:auto;transition:transform .12s;padding:0;}
+.sw.on{transform:scale(1.2);border-color:#232746;
+  box-shadow:0 0 0 4px rgba(35,39,70,.15),0 4px 10px rgba(10,15,45,.3);}
+
+/* stamp picker shares the bottom bar */
+.st{width:var(--swD);height:var(--swD);border-radius:16px;
+  background:#f2f4fa;font-size:var(--stIco);display:grid;place-items:center;
+  border:0;cursor:pointer;pointer-events:auto;padding:0;}
+.st.on{background:#fff;box-shadow:0 0 0 4px var(--ink);transform:scale(1.1);}
+
+.size{width:var(--actD);height:var(--actD);border-radius:50%;background:#eef1f7;}
+.size i{display:block;border-radius:50%;background:#3a3f63;}
+.size.on{background:#fff;box-shadow:0 0 0 4px rgba(47,107,255,.26);}
+.size.on i{background:var(--ink);}
+
+/* the big cycle paddle: one target, tap it again and again */
+#btnNext{width:calc(var(--actD) * 1.15);height:calc(var(--actD) * 1.15);border-radius:50%;
+  background:linear-gradient(160deg,#fff,#dde6ff);box-shadow:0 0 0 3px #fff,0 6px 16px rgba(10,15,45,.28);}
+#btnNext .ico{font-size:clamp(22px,3.4vmin,30px);}
+
+/* ---------------- status ---------------- */
+#status{pointer-events:none;display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.94);
+  border-radius:999px;padding:6px 16px 6px 8px;box-shadow:0 6px 18px rgba(10,15,45,.2);
+  font-weight:800;font-size:clamp(13px,2vmin,17px);color:#232746;}
+#status .dot{width:26px;height:26px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px #d7dbe8;}
+#status .big{font-size:22px;}
+
+#grown{pointer-events:auto;width:46px;height:46px;border-radius:14px;background:rgba(35,39,70,.85);
+  display:grid;place-items:center;cursor:pointer;position:relative;overflow:hidden;flex:none;}
+#grown .badge{font-size:20px;position:relative;filter:grayscale(1) brightness(3);}
+#grown .fill{position:absolute;left:0;bottom:0;width:100%;height:0%;background:#4ade80;opacity:.85;}
+#grown.locked{background:#16a34a;}
+
+/* ---------------- sheets ---------------- */
+.sheet{position:fixed;inset:0;background:rgba(20,22,58,.74);backdrop-filter:blur(6px);z-index:50;
+  display:none;place-items:center;pointer-events:auto;padding:18px;}
+.sheet.open{display:grid;}
+.card{background:#fff;border-radius:28px;padding:20px;max-width:min(820px,95vw);max-height:88vh;
+  overflow:auto;box-shadow:0 24px 60px rgba(0,0,0,.42);
+  touch-action:pan-y;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}
+.card h2{margin:0 0 6px;font-size:20px;color:#232746;}
+.card h3{margin:16px 0 8px;font-size:13px;letter-spacing:1.4px;text-transform:uppercase;color:#8b91b0;}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px;}
+.card .b{height:92px;border-radius:20px;gap:6px;background:#f2f4fa;width:100%;}
+.card .b .ico{font-size:28px;}
+.card .b .cap{font-size:12px;opacity:.82;}
+.card .b.on{box-shadow:0 0 0 4px var(--ink) inset;background:#fff;}
+.hint{margin:14px 2px 0;font-size:13px;color:#5b6080;line-height:1.55;}
+.step{display:flex;gap:14px;align-items:flex-start;margin:14px 0;}
+.step .n{flex:none;width:32px;height:32px;border-radius:50%;background:var(--ink);color:#fff;
+  display:grid;place-items:center;font-weight:800;font-size:15px;}
+.step .n.warn{background:#b4530f;}
+.step h4{margin:2px 0 4px;font-size:16px;color:#232746;}
+.step p{margin:0;font-size:14px;line-height:1.55;color:#4a5070;}
+.bigbtn{display:block;width:100%;margin-top:18px;border:0;border-radius:18px;background:var(--ink);
+  color:#fff;font:800 17px/1 inherit;padding:16px;cursor:pointer;
+  position:sticky;bottom:-20px;box-shadow:0 -14px 20px 14px #fff;}
+
+#fsChip{position:fixed;left:calc(64px + env(safe-area-inset-left));top:calc(9px + env(safe-area-inset-top));
+  display:none;z-index:70;border:0;cursor:pointer;pointer-events:auto;background:#b4530f;color:#fff;
+  font:800 14px/1.2 inherit;padding:12px 18px;border-radius:16px;max-width:min(420px,70vw);text-align:left;
+  box-shadow:0 6px 18px rgba(10,15,45,.35);}
+#fsChip.show{display:block;}
+#fsChip::before{content:"⛶  ";}
+
+#lockRing{position:fixed;inset:0;border:5px solid #16a34a;pointer-events:none;display:none;z-index:60;}
+#lockRing.show{display:block;}
+#lockPill{position:fixed;left:calc(64px + env(safe-area-inset-left));top:calc(14px + env(safe-area-inset-top));
+  display:none;z-index:71;background:#16a34a;color:#fff;font:800 13px/1 inherit;padding:10px 14px;
+  border-radius:999px;pointer-events:none;box-shadow:0 4px 12px rgba(10,15,45,.3);}
+#lockPill.show{display:block;}
+#fsChip.show ~ #lockPill{display:none;}
+.code{user-select:text;-webkit-user-select:text;display:block;background:#232746;color:#a8e6a3;
+  font:600 13px/1.5 ui-monospace,Menlo,Consolas,monospace;padding:10px 12px;border-radius:10px;
+  margin:8px 0 0;word-break:break-all;}
+
+#toast{position:fixed;left:50%;bottom:14%;transform:translate(-50%,20px);background:rgba(35,39,70,.94);
+  color:#fff;padding:12px 22px;border-radius:999px;font-weight:800;font-size:16px;opacity:0;
+  transition:.25s;pointer-events:none;z-index:80;}
+#toast.show{opacity:1;transform:translate(-50%,0);}
+
+@media (max-width:820px){
+  #ui{grid-template-rows:auto minmax(0,1fr) auto auto;}
+  #rail{grid-column:1/4;grid-row:3;flex-direction:row;flex-wrap:wrap;max-height:none;
+        justify-self:center;justify-content:center;}
+  #bottom{grid-row:4;}
+}
+@media (max-width:560px){
+  #status{padding:5px 10px 5px 6px;}
+  #status #stName{display:none;}
+  #actions .cap{display:none;}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;}}
+
+/* A stable, separate sheet keeps every outline within little hands' reach. */
+html,body{background:#edf0fa;color:#293052}
+#ui{gap:12px;padding:12px;padding-top:calc(12px + env(safe-area-inset-top));padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+#stage{grid-column:2;grid-row:2;position:relative;min-width:0;min-height:0;pointer-events:auto}
+#page{position:absolute;overflow:hidden;border-radius:18px;background:white;box-shadow:0 5px 28px #30385818}
+canvas.layer,#hit{position:absolute;inset:0;top:0;width:100%;height:100%}
+#outlines,#live{pointer-events:none}
+#scratch{visibility:hidden}
+#live{display:none}
+#page{isolation:isolate}
+.panel{box-shadow:0 3px 14px #3038580d;backdrop-filter:none;border:1px solid #e1e5f0;border-radius:22px}
+#rail{flex-wrap:nowrap;overflow-y:auto;touch-action:pan-y;max-height:100%}
+#rail .tool{flex-shrink:0}
+#rail .tool.extra{display:none}
+body.allTools #rail .tool.extra{display:flex}
+#bottom{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;touch-action:pan-x;width:max-content;max-width:100%;padding:12px 16px}
+#bottom>*{flex-shrink:0}
+#actions{flex-wrap:nowrap}
+#topRow{flex-wrap:nowrap;align-items:center}
+#status{box-shadow:none;background:transparent}
+#btnNext{width:var(--actD);height:var(--actD);flex-shrink:0}
+#side{flex-wrap:nowrap;overflow-y:auto;touch-action:pan-y}
+#side>*{flex-shrink:0}
+#lockRing{border-width:2px;opacity:.4}
+#lockPill{display:none!important}
+#fsChip{font-size:12px;left:70px;top:74px;max-width:220px}
+.sheet .card{width:820px;touch-action:pan-y}
+.sheet .card *{touch-action:pan-y}
+.sheetHeading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.closeSheet{border:0;border-radius:50%;width:44px;height:44px;font-size:22px;background:#edf0fa;cursor:pointer}
+#surprise{position:static;box-shadow:none;margin:12px 0 18px;background:#6554c0;font-size:15px}
+.wordRow{display:flex;gap:8px;margin:8px 0 16px;flex-wrap:wrap}.wordRow input{min-width:140px;flex:1;padding:12px;border:2px solid #dce1ef;border-radius:12px;font:inherit;user-select:text;-webkit-user-select:text;touch-action:auto}.wordRow button{border:0;background:#6554c0;color:white;padding:12px;border-radius:12px;font:inherit;cursor:pointer}
+.preview{width:100%;height:82px;object-fit:contain;pointer-events:none}
+.grid .b{height:118px;padding:8px;background:#f5f6fb}
+.b:focus-visible,.sw:focus-visible,#grown:focus-visible{outline:4px solid #6554c0;outline-offset:3px}
+button:disabled{opacity:.3!important;cursor:default}
+#toast{max-width:90vw;text-align:center;font-size:14px}
+@media(max-width:820px){
+ #ui{gap:8px;padding:8px;grid-template-rows:auto minmax(0,1fr) auto auto}
+ #stage{grid-column:1/3;grid-row:2}
+ #rail{grid-column:1/4;grid-row:3;flex-direction:row;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;max-width:100%;justify-content:flex-start;touch-action:pan-x}
+ #bottom{grid-row:4}
+ #side{grid-column:3;grid-row:2;padding:8px}
+ #status{font-size:13px;padding:0}
+ #status .big{font-size:22px}
+ #actions{padding:6px;gap:4px}
+ #grown{width:44px;height:44px}
+}
+@media(max-height:480px){#status{display:none}#ui{gap:5px}#rail .tool canvas{display:none}#rail .tool{height:44px}#bottom{padding:6px 12px}}
+
+
+/* The whole viewport is paper; controls float over its edges. No child UI scrolls. */
+[hidden]{display:none!important}
+#stage{position:fixed;inset:0;top:var(--app-top);height:var(--app-h);width:100%;z-index:0}
+#page{border-radius:0;box-shadow:none}
+#topRow,#rail,#side,#bottom{position:relative;z-index:2}
+#rail,#bottom,#side{overflow:hidden;touch-action:none}
+#side{display:grid;grid-template-columns:1fr}
+#rail .tool.extra{display:flex}
+#bottom{max-width:100%;width:max-content;justify-content:center}
+.moreButton{min-width:44px;min-height:44px;background:#e8e3fa;color:#47318b;font-weight:800;border:0;border-radius:16px;cursor:pointer;flex-shrink:0}
+#paperCard{display:flex;flex-direction:column;gap:8px;height:calc(var(--app-h) - 36px);max-height:none;max-width:min(900px,calc(100vw - 36px));padding:14px;overflow:hidden}
+#paperCard .sheetHeading{flex-shrink:0}
+#paperCard h2{font-size:19px}
+#paperTabs,#paperPager{display:flex;gap:6px;align-items:center;flex-shrink:0}
+#paperTabs button,#paperPager button{font-family:inherit;font-size:14px;font-weight:700;min-height:44px;border:0;border-radius:12px;background:#edf0fa;color:#293052;padding:8px;cursor:pointer;flex:1}
+#paperTabs button.on{background:#6554c0;color:white}
+#paperPager span{min-width:62px;text-align:center;font-weight:700}
+#paperCard #surprise{margin:0;padding:10px;min-height:44px;flex-shrink:0}
+#paperCard .grid{flex:1;min-height:0;gap:10px;grid-template-columns:repeat(var(--paper-cols,3),minmax(0,1fr));grid-auto-rows:minmax(0,1fr)}
+#paperCard .grid .b{height:100%;min-height:0;padding:8px;overflow:hidden}
+#paperCard .preview{min-height:0;height:calc(100% - 24px);max-height:180px}
+#wordForm{flex:1;padding:12px 0}
+@media(max-height:600px){#side{grid-template-columns:repeat(2,var(--actD));padding:6px;gap:5px}#paperCard{gap:5px;padding:8px}#paperCard .preview{max-height:90px}#paperCard h2{font-size:16px}}
+#paperTabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr))}
+#paperTabs button{min-width:0;padding:6px 2px;font-size:13px;overflow-wrap:normal}
+@media(max-width:560px){#paperTabs button{font-size:11px}}
+/* Toddler-sized controls: stable tiles rather than tiny circular targets. */
+#actions{gap:8px}
+#actions .cap{display:block;font-size:13px;opacity:1}
+#actions .ico{font-size:32px}
+#btnPaper{background:#e5ddff}#btnNew{background:#d7f4ec}
+#bottom{display:grid;gap:7px;padding:10px 12px}
+.sw{border-radius:16px;position:relative;border-width:3px;box-shadow:0 2px 5px #23274633}
+.sw.on{transform:none;border-color:#232746;box-shadow:inset 0 0 0 2px white}
+.colorCheck{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:white;color:#232746;font-size:23px;font-weight:bold;margin:auto}
+button{touch-action:manipulation}
+button:active{filter:brightness(.9)}
+.closeSheet{min-width:56px;min-height:56px}
+#paperTabs button,#paperPager button{min-height:56px}
+@media(max-width:560px){
+ #status{display:none}#topRow{gap:4px}#actions{padding:6px;gap:4px}
+ #actions .cap{font-size:10px}#actions .ico{font-size:26px}
+ #grown{width:48px;height:56px}#side{padding:6px;gap:7px}
+}
+@media(max-height:480px){
+ #rail .tool{height:var(--toolH)}#side{grid-template-columns:repeat(3,var(--actD))}
+ #side{align-self:start}#bottom{padding:6px 12px}#actions .ico{font-size:26px}
+}
+</style>
+</head>
+<body class="allTools" style="--ink:#2f6bff">
+
+
+
+<div id="ui">
+  <div id="stage"><div id="page"><canvas id="paper" class="layer"></canvas><canvas id="art" class="layer"></canvas><canvas id="scratch" class="layer"></canvas><canvas id="live" class="layer"></canvas><canvas id="outlines" class="layer"></canvas><div id="hit" aria-label="Drawing paper"></div></div></div>
+  <div id="topRow">
+    <div id="grown" role="button" tabindex="0" aria-label="Hold for three seconds for grown-up controls"><div class="fill"></div><span class="badge">🔒</span></div>
+    <div id="status"><span class="big" id="stTool">🖍️</span><span id="stName">Crayon</span><span class="dot" id="stDot"></span></div>
+    <div class="panel" id="actions">
+      <button class="b act" id="btnUndo"><span class="ico">↩️</span><span class="cap">Undo</span></button>
+      <button class="b act" id="btnRedo"><span class="ico">↪️</span><span class="cap">Redo</span></button>
+      <button class="b act" id="btnPaper"><span class="ico">📄</span><span class="cap">New page</span></button>
+      <button class="b act" id="btnNew"><span class="ico">🧼</span><span class="cap">Clean</span></button>
+    </div>
+  </div>
+
+  <div class="panel" id="rail"></div>
+
+  <div class="panel" id="side">
+    <button class="b" id="btnNext"><span class="ico">👉</span></button>
+    <button class="b size" data-size="small"><i style="width:8px;height:8px"></i></button>
+    <button class="b size on" data-size="medium"><i style="width:16px;height:16px"></i></button>
+    <button class="b size" data-size="large"><i style="width:26px;height:26px"></i></button>
+    <button class="b act" id="btnMirror"><span class="ico">🦋</span><span class="cap">Off</span></button>
+  </div>
+
+  <div class="panel" id="bottom"></div>
+</div>
+
+<div class="sheet" id="paperSheet"><div class="card" id="paperCard">
+  <div class="sheetHeading"><h2>Pick an adventure</h2><button class="closeSheet" aria-label="Close paper picker">✕</button></div>
+  <div id="paperTabs"><button data-category="plain">📄 Blank</button><button data-category="picture">🎨 Color</button><button data-category="pattern">🔷 Patterns</button><button data-category="trace">〰️ Trace</button><button data-category="words">✍️ Words</button></div>
+  <button class="bigbtn" id="surprise">🎲 Make a surprise page</button>
+  <div class="grid" id="plainGrid"></div><div class="grid" id="pictureGrid"></div><div class="grid" id="traceGrid"></div><div class="grid" id="patternGrid"></div>
+  <form id="wordForm"><label for="traceWords">A name or favorite word</label><div class="wordRow"><input id="traceWords" maxlength="16" placeholder="Type a word" autocomplete="off"><button type="submit">Make tracing paper</button></div></form>
+  <div id="paperPager"><button id="paperPrev" aria-label="Previous pages">◀ Back</button><span id="paperPageNumber" aria-live="polite"></span><button id="paperNext" aria-label="Next pages">More ▶</button></div>
+</div></div>
+
+<div class="sheet" id="grownSheet"><div class="card">
+  <h2>Grown-ups</h2>
+  <div class="grid">
+    <button class="b" id="gSave"><span class="ico">💾</span><span class="cap">Save picture</span></button>
+    <button class="b" id="gSound"><span class="ico">🔊</span><span class="cap">Sound on</span></button>
+    <button class="b" id="gFull"><span class="ico">⛶</span><span class="cap">Full screen</span></button>
+    <button class="b" id="gLock"><span class="ico">🔒</span><span class="cap">Kid lock on</span></button>
+    <button class="b" id="gSetup"><span class="ico">🛠️</span><span class="cap">Set up</span></button>
+    <button class="b" id="gTools"><span class="ico">🧰</span><span class="cap">Simple tools</span></button>
+    <button class="b" id="gWipe"><span class="ico">🗑️</span><span class="cap">Erase all</span></button>
+    <button class="b" id="gClose"><span class="ico">✅</span><span class="cap">Back to art</span></button>
+  </div>
+  <p class="hint">Hold the padlock for three seconds to get back here. Child mode reduces interruptions; it cannot lock your device or prevent system shortcuts.</p>
+  <p class="hint" id="lockNote" style="color:#232746;background:#f2f4fa;border-radius:14px;padding:10px 12px"></p>
+</div></div>
+
+<div class="sheet" id="setupSheet"><div class="card">
+  <h2>Make this a kids-only screen</h2>
+  <div id="setupSteps"></div>
+  <button class="bigbtn" id="setupDone">Got it</button>
+</div></div>
+
+<div id="lockRing"></div>
+<div id="lockPill">🔒 Child mode</div>
+<button id="fsChip"><span>⛶ Tap for full screen</span></button>
+<div id="toast"></div>
+
+<script>
+"use strict";
+const TAU = Math.PI * 2;
+const clamp = (v,a,b) => v < a ? a : v > b ? b : v;
+
+/* ==================================================================
+   1. Canvas stack
+=================================================================== */
+const paper   = document.getElementById('paper');
+const art     = document.getElementById('art');
+const scratch = document.getElementById('scratch');
+const pctx = paper.getContext('2d');
+const actx = art.getContext('2d');
+const sctx = scratch.getContext('2d');
+
+let vw = 0, vh = 0, dpr = 1;
+let designWidth=1000,designHeight=760,viewScale=1,viewLeft=0,viewTop=0;
+let artRevision=0,resizeSource=null;
+
+/* ------------------------------------------------------------------
+   Viewport and fit
+
+   window.innerHeight is the LAYOUT viewport. On a phone or tablet the
+   browser toolbars sit on top of it, so anything anchored to the bottom
+   ends up underneath them. visualViewport is the part actually on
+   screen, and that is what the app is sized to.
+
+   fitUI then shrinks the controls, in steps, until the top bar, the
+   tool rail and the palette all fit in that height with room left for
+   the paper. It sizes for the 32-item stamp row, not the 14-item colour
+   row, so the layout never jumps when the stamp tool is chosen.
+------------------------------------------------------------------- */
+const vp = window.visualViewport || null;
+function viewH(){ return Math.round(vp ? vp.height : window.innerHeight); }
+function viewW(){ return Math.round(vp ? vp.width  : window.innerWidth); }
+
+const SIZE_STEPS = [
+  {toolW:90, toolH:80, sw:58, act:62, ico:23, cap:11, st:27},
+  {toolW:82, toolH:73, sw:53, act:57, ico:21, cap:10, st:25},
+  {toolW:74, toolH:66, sw:48, act:52, ico:20, cap:10, st:23},
+  {toolW:67, toolH:59, sw:44, act:47, ico:18, cap:9,  st:21},
+  {toolW:60, toolH:53, sw:40, act:43, ico:17, cap:9,  st:19},
+  {toolW:54, toolH:47, sw:36, act:39, ico:15, cap:8,  st:17},
+  {toolW:48, toolH:42, sw:33, act:35, ico:14, cap:8,  st:16}
+];
+const GAP = 7, PANEL_PAD = 20, UI_PAD = 16;
+
+function rowsNeeded(n, itemW, avail){
+  const per = Math.max(1, Math.floor((avail + GAP) / (itemW + GAP)));
+  return {rows: Math.ceil(n / per), per};
+}
+function applyStep(st){
+  const r = document.documentElement.style;
+  r.setProperty('--toolW', st.toolW+'px');
+  r.setProperty('--toolH', st.toolH+'px');
+  r.setProperty('--swD',   st.sw+'px');
+  r.setProperty('--actD',  st.act+'px');
+  r.setProperty('--toolIco', st.ico+'px');
+  r.setProperty('--toolCap', st.cap+'px');
+  r.setProperty('--stIco', st.st+'px');
+}
+
+function fitUI(){
+  const H=viewH(), W=viewW(), r=document.documentElement.style;
+  r.setProperty('--app-h',H+'px');
+  r.setProperty('--app-top',Math.round(vp ? vp.offsetTop : 0)+'px');
+  applyStep(W < 560 || H < 500 ? {toolW:64,toolH:64,sw:56,act:56,ico:28,cap:11,st:32} :
+    {toolW:96,toolH:88,sw:76,act:80,ico:34,cap:13,st:38});
+}
+
+function copyOf(src){
+  const c = document.createElement('canvas');
+  c.width = src.width; c.height = src.height;
+  c.getContext('2d').drawImage(src, 0, 0);
+  return c;
+}
+
+function backingDensity(width,height){
+  const zoom=Math.min(viewW()/designWidth,viewH()/designHeight);
+  return Math.min(3,Math.max(2,(window.devicePixelRatio||1)*zoom),Math.sqrt(8000000/(width*height)));
+}
+function setDocumentSize(width,height,ratio=backingDensity(width,height)){
+  vw=width;vh=height;dpr=ratio;
+  for(const c of [paper,art,scratch,document.getElementById('live'),guideCanvas]){
+    c.width=Math.ceil(vw*dpr);c.height=Math.ceil(vh*dpr);
+  }
+  for(const c of [pctx,actx,sctx]){c.setTransform(dpr,0,0,dpr,0,0);c.lineCap='round';c.lineJoin='round';}
+}
+function placeArtwork(image,width,height){
+  // Center old workspace pixels without changing their world-space proportions.
+  actx.drawImage(image,(vw-width)/2,(vh-height)/2,width,height);
+}
+function sizeLayers(){
+  finish();fitUI();
+  if(!vw){designWidth=1000;designHeight=Math.round(1000*viewH()/viewW());setDocumentSize(designWidth,designHeight);}
+  viewScale=Math.min(viewW()/designWidth,viewH()/designHeight);
+  // Expand the retained workspace when an orientation exposes new margins.
+  // Never crop it or shrink it: drawings in those margins survive future rotations.
+  const width=Math.max(vw,Math.ceil(viewW()/viewScale));
+  const height=Math.max(vh,Math.ceil(viewH()/viewScale));
+  const ratio=backingDensity(width,height);
+  if(width!==vw||height!==vh||Math.abs(ratio-dpr)>.01){
+    if(!resizeSource||resizeSource.revision!==artRevision)resizeSource={image:copyOf(art),width:vw,height:vh,revision:artRevision};
+    setDocumentSize(width,height,ratio);placeArtwork(resizeSource.image,resizeSource.width,resizeSource.height);
+  }
+  viewLeft=(viewW()-vw*viewScale)/2;viewTop=(viewH()-vh*viewScale)/2;
+  Object.assign(document.getElementById('page').style,{width:viewW()+'px',height:viewH()+'px',left:'0px',top:'0px'});
+  for(const c of [paper,art,scratch,document.getElementById('live')]){
+    Object.assign(c.style,{width:vw*viewScale+'px',height:vh*viewScale+'px',left:viewLeft+'px',top:viewTop+'px',right:'auto',bottom:'auto'});
+  }
+  drawPaper();updateToolPage();buildBottom();
+  if(document.getElementById('paperSheet').classList.contains('open'))buildPaperSheet();
+}
+
+/* ==================================================================
+   2. Paper and colouring-page outlines
+   Every picture is drawn in a 100x100 design space, centred and
+   scaled to the short edge of the screen.
+=================================================================== */
+const PLAIN = [
+  {id:'white', ico:'⬜', name:'White'},
+  {id:'cream', ico:'🟨', name:'Cream'},
+  {id:'sky',   ico:'🟦', name:'Sky'},
+  {id:'night', ico:'⬛', name:'Night'},
+  {id:'grid',  ico:'▦',  name:'Grid'},
+  {id:'lined', ico:'📝', name:'Lines'},
+  {id:'dots',  ico:'⁙',  name:'Dots'}
+];
+const PICTURES = [
+  {id:'fish',     ico:'🐟', name:'Fish'},
+  {id:'cat',      ico:'🐱', name:'Cat'},
+  {id:'dog',      ico:'🐶', name:'Dog'},
+  {id:'dino',     ico:'🦕', name:'Dinosaur'},
+  {id:'butterfly',ico:'🦋', name:'Butterfly'},
+  {id:'flower',   ico:'🌼', name:'Flower'},
+  {id:'tree',     ico:'🌳', name:'Apple tree'},
+  {id:'house',    ico:'🏠', name:'House'},
+  {id:'rocket',   ico:'🚀', name:'Rocket'},
+  {id:'car',      ico:'🚗', name:'Car'},
+  {id:'train',    ico:'🚂', name:'Train'},
+  {id:'boat',     ico:'⛵', name:'Sailboat'},
+  {id:'robot',    ico:'🤖', name:'Robot'},
+  {id:'icecream', ico:'🍦', name:'Ice cream'},
+  {id:'snowman',  ico:'⛄', name:'Snowman'},
+  {id:'balloons', ico:'🎈', name:'Balloons'},
+  {id:'mandala',  ico:'❄️', name:'Snow star'},
+  {id:'teddy',    ico:'🧸', name:'Teddy'}
+];
+let paperId = 'butterfly';
+let pageSeed = 1;
+let traceText='HELLO';
+const guideCanvas=document.createElement('canvas');
+let guidePixels=null;
+
+function paperBase(){
+  return paperId === 'night' ? '#191b33'
+       : paperId === 'cream' ? '#fdf6e3'
+       : paperId === 'sky'   ? '#eaf4ff'
+       : '#ffffff';
+}
+
+function drawPaper(){
+  pctx.save();
+  pctx.setTransform(dpr,0,0,dpr,0,0);
+  pctx.fillStyle = paperBase();
+  pctx.fillRect(0,0,vw,vh);
+  const rule = paperId === 'night' ? 'rgba(255,255,255,.15)' : 'rgba(60,70,110,.17)';
+
+  if (paperId === 'grid'){
+    pctx.strokeStyle = rule; pctx.lineWidth = 1; pctx.beginPath();
+    for (let x = ((vw-designWidth)/2)%46; x < vw; x += 46){ pctx.moveTo(x+.5,0); pctx.lineTo(x+.5,vh); }
+    for (let y = ((vh-designHeight)/2)%46; y < vh; y += 46){ pctx.moveTo(0,y+.5); pctx.lineTo(vw,y+.5); }
+    pctx.stroke();
+  }
+  if (paperId === 'dots'){
+    pctx.fillStyle = rule;
+    for (let x = ((vw-designWidth)/2)%40; x < vw; x += 40)
+      for (let y = ((vh-designHeight)/2)%40; y < vh; y += 40){ pctx.beginPath(); pctx.arc(x,y,2,0,TAU); pctx.fill(); }
+  }
+  if (paperId === 'lined'){
+    pctx.strokeStyle = rule; pctx.lineWidth = 2; pctx.beginPath();
+    for (let y = (72+(vh-designHeight)/2)%62; y < vh; y += 62){ pctx.moveTo(26,y); pctx.lineTo(vw-26,y); }
+    pctx.stroke();
+  }
+  pctx.restore();
+  // Preserve printed outlines above all paint, including black bucket fills.
+  const oc=guideCanvas.getContext('2d');
+  oc.clearRect(0,0,paper.width,paper.height);
+  if (PICTURE_ART[paperId]){
+    oc.save(); const s=Math.min(designWidth,designHeight)*.82;
+    oc.setTransform(dpr,0,0,dpr,0,0);oc.translate((vw-s)/2,(vh-s)/2);oc.scale(s/100,s/100);
+    oc.lineWidth=220/(s*viewScale);oc.traceWidth=150/(s*viewScale);oc.lineJoin='round';oc.lineCap='round';oc.strokeStyle='#2b3157';
+    PICTURE_ART[paperId](oc);oc.restore();
+  }
+  // Display vectors at native device resolution, independently of the retained
+  // paint workspace's memory budget. They never get stretched or resampled.
+  const visible=document.getElementById('outlines'),pixelRatio=Math.min(3,window.devicePixelRatio||1);
+  visible.width=Math.ceil(viewW()*pixelRatio);visible.height=Math.ceil(viewH()*pixelRatio);
+  Object.assign(visible.style,{left:'0px',top:'0px',width:viewW()+'px',height:viewH()+'px',right:'auto',bottom:'auto'});
+  if(PICTURE_ART[paperId]){
+    const vc=visible.getContext('2d'),s=Math.min(designWidth,designHeight)*.82;
+    vc.setTransform(pixelRatio*viewScale,0,0,pixelRatio*viewScale,viewLeft*pixelRatio,viewTop*pixelRatio);
+    vc.translate((vw-s)/2,(vh-s)/2);vc.scale(s/100,s/100);
+    vc.lineWidth=220/(s*viewScale);vc.traceWidth=150/(s*viewScale);
+    vc.lineJoin='round';vc.lineCap='round';vc.strokeStyle='#2b3157';PICTURE_ART[paperId](vc);
+  }
+  guidePixels=null;
+  if(PICTURE_ART[paperId]){
+    const pixels=oc.getImageData(0,0,paper.width,paper.height);
+    guidePixels=new Uint8Array(paper.width*paper.height);
+    for(let i=0;i<guidePixels.length;i++){
+      guidePixels[i]=pixels.data[i*4+3];
+    }
+  }
+}
+// Printed vectors stay on top. Do not punch binary holes in artwork: that
+// removes antialiased edge coverage and produces white pixel halos.
+
+/* --- little helpers so the pictures read cleanly --- */
+function ring(c,x,y,r){ c.beginPath(); c.arc(x,y,r,0,TAU); c.stroke(); }
+function oval(c,x,y,rx,ry,rot){ c.beginPath(); c.ellipse(x,y,rx,ry,rot||0,0,TAU); c.stroke(); }
+function line(c,x1,y1,x2,y2){ c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.stroke(); }
+function poly(c,pts,close){
+  c.beginPath(); c.moveTo(pts[0][0],pts[0][1]);
+  for (let i=1;i<pts.length;i++) c.lineTo(pts[i][0],pts[i][1]);
+  if (close) c.closePath();
+  c.stroke();
+}
+function curve(c,x1,y1,cx,cy,x2,y2){ c.beginPath(); c.moveTo(x1,y1); c.quadraticCurveTo(cx,cy,x2,y2); c.stroke(); }
+function ground(c,y){ line(c,3,y,97,y); }
+
+const PICTURE_ART = {
+  fish(c){
+    oval(c,44,50,28,18);
+    poly(c,[[71,50],[95,32],[95,68]],true);
+    ring(c,28,44,3.4);
+    curve(c,40,33,48,19,58,34);
+    curve(c,40,67,48,81,58,66);
+    curve(c,60,34,66,50,60,66);
+    ring(c,16,25,5); ring(c,8,13,3.2);
+    for (let i=0;i<3;i++) curve(c,26+i*10,58,31+i*10,63,36+i*10,58);
+  },
+  cat(c){
+    ring(c,50,36,20);
+    poly(c,[[35,22],[28,5],[47,15]]);
+    poly(c,[[65,22],[72,5],[53,15]]);
+    ring(c,43,33,2.6); ring(c,57,33,2.6);
+    poly(c,[[46,41],[54,41],[50,46]],true);
+    curve(c,50,46,45,51,41,48); curve(c,50,46,55,51,59,48);
+    line(c,36,42,20,38); line(c,36,45,19,47);
+    line(c,64,42,80,38); line(c,64,45,81,47);
+    c.beginPath(); c.moveTo(35,52); c.quadraticCurveTo(27,72,32,88);
+    c.lineTo(68,88); c.quadraticCurveTo(73,72,65,52); c.stroke();
+    curve(c,68,86,92,84,86,62);
+    ground(c,88);
+  },
+  dog(c){
+    oval(c,50,34,19,16);
+    oval(c,29,42,8,16,0.22); oval(c,71,42,8,16,-0.22);
+    oval(c,50,46,12,9);
+    oval(c,50,42,3.6,2.8);
+    ring(c,43,31,2.4); ring(c,57,31,2.4);
+    curve(c,50,49,45,53,42,50); curve(c,50,49,55,53,58,50);
+    c.beginPath(); c.moveTo(34,50); c.quadraticCurveTo(26,70,32,88);
+    c.lineTo(68,88); c.quadraticCurveTo(74,70,66,50); c.stroke();
+    curve(c,68,80,86,74,80,58);
+    ground(c,88);
+  },
+  dino(c){
+    oval(c,52,58,24,14);
+    curve(c,33,50,20,42,22,26);
+    oval(c,21,21,9,7);
+    ring(c,19,19,1.8);
+    curve(c,76,55,93,50,95,34);
+    for (const L of [[39,70],[53,72],[66,70]]){
+      c.beginPath();
+      c.moveTo(L[0]-5,L[1]); c.lineTo(L[0]-5,L[1]+12);
+      c.quadraticCurveTo(L[0],L[1]+17,L[0]+5,L[1]+12); c.lineTo(L[0]+5,L[1]);
+      c.stroke();
+    }
+    for (let i=0;i<4;i++) poly(c,[[38+i*10,46],[43+i*10,36],[48+i*10,46]]);
+    ground(c,86);
+  },
+  butterfly(c){
+    oval(c,50,52,3.6,22);
+    oval(c,31,38,18,15,-0.35); oval(c,69,38,18,15,0.35);
+    oval(c,34,68,14,12,0.4);   oval(c,66,68,14,12,-0.4);
+    ring(c,31,38,6); ring(c,69,38,6);
+    curve(c,48,31,40,17,33,16); curve(c,52,31,60,17,67,16);
+    ring(c,33,15,2.2); ring(c,67,15,2.2);
+  },
+  flower(c){
+    for (let i=0;i<7;i++){
+      const a = i/7*TAU;
+      c.save(); c.translate(50+Math.cos(a)*17, 34+Math.sin(a)*17); c.rotate(a);
+      c.beginPath(); c.ellipse(0,0,11,7,0,0,TAU); c.stroke(); c.restore();
+    }
+    ring(c,50,34,10);
+    curve(c,50,44,57,68,50,92);
+    oval(c,37,64,11,6,-0.5); oval(c,65,76,11,6,0.5);
+    ground(c,92);
+  },
+  tree(c){
+    poly(c,[[43,88],[46,50],[54,50],[57,88]]);
+    ring(c,50,34,21); ring(c,32,44,13); ring(c,68,44,13);
+    for (const p of [[42,30],[58,28],[50,44],[36,42],[64,44]]) ring(c,p[0],p[1],3.4);
+    ground(c,88);
+    for (let i=0;i<4;i++) curve(c,12+i*22,88,17+i*22,80,22+i*22,88);
+  },
+  house(c){
+    c.strokeRect(24,46,52,38);
+    poly(c,[[16,47],[50,19],[84,47]]);
+    c.strokeRect(43,63,15,21);
+    ring(c,55,74,1.6);
+    c.strokeRect(30,53,12,12); line(c,36,53,36,65); line(c,30,59,42,59);
+    c.strokeRect(60,53,12,12); line(c,66,53,66,65); line(c,60,59,72,59);
+    c.strokeRect(64,26,8,13);
+    ring(c,86,14,7);
+    for (let i=0;i<8;i++){
+      const a=i/8*TAU;
+      line(c,86+Math.cos(a)*10,14+Math.sin(a)*10,86+Math.cos(a)*14,14+Math.sin(a)*14);
+    }
+    ground(c,84);
+  },
+  rocket(c){
+    c.beginPath(); c.moveTo(50,7); c.quadraticCurveTo(66,32,66,54);
+    c.lineTo(66,72); c.lineTo(34,72); c.lineTo(34,54);
+    c.quadraticCurveTo(34,32,50,7); c.closePath(); c.stroke();
+    ring(c,50,38,9); ring(c,50,38,5);
+    poly(c,[[34,55],[19,77],[34,72]]);
+    poly(c,[[66,55],[81,77],[66,72]]);
+    curve(c,40,72,50,98,60,72);
+    curve(c,45,72,50,88,55,72);
+    for (const p of [[11,20],[88,26],[14,52],[90,58],[50,4]]){
+      line(c,p[0]-4,p[1],p[0]+4,p[1]); line(c,p[0],p[1]-4,p[0],p[1]+4);
+    }
+  },
+  car(c){
+    c.beginPath(); c.moveTo(11,68); c.lineTo(11,53); c.lineTo(27,53);
+    c.quadraticCurveTo(34,33,52,33); c.quadraticCurveTo(66,33,72,53);
+    c.lineTo(89,53); c.lineTo(89,68); c.closePath(); c.stroke();
+    ring(c,30,68,9); ring(c,30,68,3);
+    ring(c,70,68,9); ring(c,70,68,3);
+    poly(c,[[36,51],[41,38],[49,38],[49,51]],true);
+    poly(c,[[54,38],[62,38],[67,51],[54,51]],true);
+    ring(c,15,58,3);
+    ground(c,79);
+  },
+  train(c){
+    c.strokeRect(20,50,54,22);
+    c.strokeRect(20,32,22,18);
+    c.strokeRect(24,36,14,10);
+    c.strokeRect(60,36,11,14);
+    c.strokeRect(58,32,15,4);
+    ring(c,30,78,7); ring(c,50,78,7); ring(c,66,78,7);
+    ring(c,30,78,2.4); ring(c,50,78,2.4); ring(c,66,78,2.4);
+    ring(c,66,24,5); ring(c,76,15,7); ring(c,88,9,5);
+    ground(c,86);
+    for (let x=6;x<96;x+=10) line(c,x,86,x,90);
+  },
+  boat(c){
+    poly(c,[[15,66],[85,66],[74,80],[26,80]],true);
+    line(c,50,66,50,12);
+    poly(c,[[47,17],[47,62],[19,62]],true);
+    poly(c,[[53,24],[53,62],[79,62]],true);
+    poly(c,[[50,12],[64,16],[50,20]],true);
+    ring(c,84,20,7);
+    for (let r=0;r<3;r++)
+      for (let i=0;i<4;i++) curve(c,6+i*24,84+r*5,12+i*24,80+r*5,18+i*24,84+r*5);
+  },
+  robot(c){
+    c.strokeRect(32,20,36,28);
+    line(c,50,20,50,10); ring(c,50,7,3.5);
+    ring(c,42,31,4); ring(c,58,31,4);
+    c.strokeRect(40,39,20,6);
+    for (let i=1;i<4;i++) line(c,40+i*5,39,40+i*5,45);
+    c.strokeRect(28,50,44,30);
+    ring(c,40,60,3.5); ring(c,52,60,3.5); ring(c,63,60,3.5);
+    c.strokeRect(38,68,24,7);
+    c.strokeRect(14,52,14,7); c.strokeRect(72,52,14,7);
+    ring(c,11,55,5); ring(c,89,55,5);
+    c.strokeRect(35,80,10,12); c.strokeRect(55,80,10,12);
+    ground(c,92);
+  },
+  icecream(c){
+    c.save();
+    c.beginPath(); c.moveTo(33,52); c.lineTo(67,52); c.lineTo(50,92); c.closePath(); c.clip();
+    for (let i=-44;i<62;i+=9) line(c, 33+i, 50, 33+i+46, 94);
+    for (let i=-44;i<62;i+=9) line(c, 67-i, 50, 67-i-46, 94);
+    c.restore();
+    poly(c,[[33,52],[67,52],[50,92]],true);
+    ring(c,50,43,17);
+    ring(c,50,24,13);
+    ring(c,50,11,4);
+    line(c,50,7,55,2);
+    curve(c,36,50,40,60,44,54);
+    curve(c,58,49,62,59,66,53);
+  },
+  snowman(c){
+    ring(c,50,72,20); ring(c,50,45,15); ring(c,50,24,11);
+    c.strokeRect(41,8,18,9); line(c,36,17,64,17);
+    ring(c,46,22,1.8); ring(c,54,22,1.8);
+    poly(c,[[50,25],[62,28],[50,30]],true);
+    for (let i=0;i<5;i++) ring(c,50-8+i*4,34,1);
+    ring(c,50,42,2.6); ring(c,50,50,2.6);
+    ring(c,50,64,3); ring(c,50,74,3); ring(c,50,84,3);
+    line(c,35,42,16,32); line(c,16,32,10,36); line(c,16,32,13,26);
+    line(c,65,42,84,32); line(c,84,32,90,36); line(c,84,32,87,26);
+    for (const p of [[12,10],[88,12],[20,60],[82,64],[6,44]]){
+      line(c,p[0]-4,p[1],p[0]+4,p[1]);
+      line(c,p[0],p[1]-4,p[0],p[1]+4);
+      line(c,p[0]-3,p[1]-3,p[0]+3,p[1]+3);
+      line(c,p[0]-3,p[1]+3,p[0]+3,p[1]-3);
+    }
+    ground(c,92);
+  },
+  balloons(c){
+    const B = [[30,28,16,20],[58,20,14,18],[74,40,12,16]];
+    for (const b of B){
+      oval(c,b[0],b[1],b[2],b[3]);
+      poly(c,[[b[0]-3,b[1]+b[3]],[b[0]+3,b[1]+b[3]],[b[0],b[1]+b[3]+5]],true);
+    }
+    curve(c,30,53,26,72,40,90);
+    curve(c,58,43,64,66,52,90);
+    curve(c,74,61,80,74,62,90);
+    ring(c,50,92,4);
+    ring(c,14,66,5); ring(c,20,64,7); ring(c,27,67,5);
+  },
+  mandala(c){
+    ring(c,50,50,7); ring(c,50,50,14);
+    for (let i=0;i<6;i++){
+      const a = i/6*TAU;
+      c.save(); c.translate(50,50); c.rotate(a);
+      line(c,0,-14,0,-44);
+      line(c,0,-24,-7,-31); line(c,0,-24,7,-31);
+      line(c,0,-34,-6,-40); line(c,0,-34,6,-40);
+      c.beginPath(); c.ellipse(0,-44,4,6,0,0,TAU); c.stroke();
+      c.save(); c.rotate(TAU/12); c.beginPath(); c.ellipse(0,-20,4,7,0,0,TAU); c.stroke(); c.restore();
+      c.restore();
+    }
+    ring(c,50,50,3);
+  },
+  teddy(c){
+    ring(c,32,26,9); ring(c,32,26,4.5);
+    ring(c,68,26,9); ring(c,68,26,4.5);
+    ring(c,50,34,19);
+    oval(c,50,42,10,8);
+    oval(c,50,38,3.4,2.6);
+    ring(c,43,31,2.4); ring(c,57,31,2.4);
+    line(c,50,41,50,46); curve(c,50,46,45,49,42,46); curve(c,50,46,55,49,58,46);
+    oval(c,50,68,17,16);
+    oval(c,50,70,10,9);
+    oval(c,27,60,9,11,0.4); oval(c,73,60,9,11,-0.4);
+    oval(c,36,86,10,8,0.3); oval(c,64,86,10,8,-0.3);
+    ground(c,92);
+  }
+};
+
+// Procedural line art needs no downloaded images and always has closed fill regions.
+function star(c,x,y,r){const pts=[];for(let i=0;i<10;i++){const a=i*Math.PI/5-Math.PI/2,rr=i%2?r*.46:r;pts.push([x+Math.cos(a)*rr,y+Math.sin(a)*rr]);}poly(c,pts,true);}
+Object.assign(PICTURE_ART,{
+ turtle(c){oval(c,50,50,26,21);oval(c,50,50,13,12);oval(c,84,50,8,10);ring(c,87,47,1.6);for(const [x,y] of [[30,29],[67,29],[30,72],[67,72]])oval(c,x,y,7,5);poly(c,[[24,45],[14,50],[24,55]],true);},
+ ladybug(c){oval(c,50,58,27,30);ring(c,50,22,12);line(c,50,28,50,88);for(const [x,y] of [[35,44],[34,64],[43,78],[65,44],[66,64],[57,78]])ring(c,x,y,5);line(c,43,12,35,5);line(c,57,12,65,5);},
+ owl(c){oval(c,50,54,28,34);poly(c,[[26,34],[24,9],[44,23]],true);poly(c,[[56,23],[76,9],[74,34]],true);ring(c,38,43,11);ring(c,62,43,11);ring(c,38,43,3);ring(c,62,43,3);poly(c,[[45,55],[55,55],[50,63]],true);oval(c,50,73,12,9);},
+ castle(c){c.strokeRect(29,40,42,45);for(const x of [12,71]){c.strokeRect(x,30,17,55);poly(c,[[x-3,30],[x+8.5,10],[x+20,30]],true);c.strokeRect(x+5,42,7,13);}c.strokeRect(43,62,14,23);c.strokeRect(38,46,8,10);c.strokeRect(55,46,8,10);},
+ cupcake(c){poly(c,[[27,54],[73,54],[66,88],[34,88]],true);for(const x of [40,50,60])line(c,x,59,x,83);c.beginPath();c.moveTo(25,54);c.bezierCurveTo(5,30,37,35,37,23);c.bezierCurveTo(35,9,66,9,66,30);c.bezierCurveTo(89,28,88,55,75,54);c.closePath();c.stroke();ring(c,50,12,5);},
+ whale(c){c.beginPath();c.moveTo(75,54);c.bezierCurveTo(64,11,9,23,13,58);c.bezierCurveTo(17,92,67,89,80,64);c.lineTo(94,44);c.lineTo(80,47);c.lineTo(74,36);c.closePath();c.stroke();ring(c,29,50,3);curve(c,23,63,35,75,45,63);oval(c,51,70,12,6,-.4);oval(c,37,16,4,8,-.4);oval(c,49,13,4,8,.4);},
+ bee(c){oval(c,37,26,14,17,-.5);oval(c,63,26,14,17,.5);oval(c,50,56,25,30);for(const y of [43,56,69]){const dx=Math.sqrt(1-((y-56)/30)**2)*25;line(c,50-dx,y,50+dx,y);}ring(c,42,35,2);ring(c,58,35,2);poly(c,[[45,85],[55,85],[50,94]],true);},
+ mushroom(c){c.beginPath();c.moveTo(10,52);c.bezierCurveTo(12,0,88,0,90,52);c.closePath();c.stroke();poly(c,[[39,52],[61,52],[67,89],[33,89]],true);ring(c,35,31,8);ring(c,63,26,9);ring(c,74,43,5);ring(c,25,45,4);},
+ rainbowpage(c){for(const r of [40,31,22,13]){c.beginPath();c.arc(50,63,r,Math.PI,TAU);c.lineTo(50+r,80);c.lineTo(50-r,80);c.closePath();c.stroke();}ring(c,84,17,9);},
+ kite(c){poly(c,[[50,8],[79,40],[50,69],[21,40]],true);line(c,50,8,50,69);line(c,21,40,79,40);curve(c,50,69,72,85,46,94);poly(c,[[55,77],[70,73],[70,85]],true);},
+ pizza(c){ring(c,50,50,40);ring(c,50,50,33);for(let i=0;i<6;i++){const a=i*TAU/6;line(c,50,50,50+Math.cos(a)*33,50+Math.sin(a)*33);ring(c,50+Math.cos(a+.5)*22,50+Math.sin(a+.5)*22,5);}},
+ garden(c){for(const [x,y] of [[25,28],[72,29],[48,68]]){for(let i=0;i<5;i++){const a=i*TAU/5;ring(c,x+Math.cos(a)*11,y+Math.sin(a)*11,7);}ring(c,x,y,7);line(c,x,y+18,x,y+28);}},
+ surprise(c){
+  let n=pageSeed>>>0;const random=()=>{n=(Math.imul(n,1664525)+1013904223)>>>0;return n/4294967296;};
+  for(let row=0;row<3;row++)for(let col=0;col<3;col++){
+    const x=18+col*32,y=18+row*32,r=10+random()*3;
+    switch(Math.floor(random()*5)){
+      case 0:ring(c,x,y,r);ring(c,x,y,r*.48);break;
+      case 1:star(c,x,y,r);break;
+      case 2:poly(c,[[x,y-r],[x+r,y+r],[x-r,y+r]],true);break;
+      case 3:c.strokeRect(x-r,y-r,r*2,r*2);line(c,x-r,y,x+r,y);break;
+      default:oval(c,x,y,r*.8,r);line(c,x-r*.8,y,x+r*.8,y);
+    }
+  }
+ }
+});
+for(const [id,ico,name] of [['turtle','🐢','Turtle'],['ladybug','🐞','Ladybug'],['owl','🦉','Owl'],['castle','🏰','Castle'],['cupcake','🧁','Cupcake'],['whale','🐳','Whale'],['bee','🐝','Bee'],['mushroom','🍄','Mushroom'],['rainbowpage','🌈','Rainbow'],['kite','🪁','Kite'],['pizza','🍕','Pizza'],['garden','🌼','Garden'],['surprise','🎲','Shape party']])PICTURES.push({id,ico,name});
+const TRACING=[{id:'trace-name',ico:'✍️',name:'My words'},{id:'trace-trails',ico:'〰️',name:'Wiggly trails'},{id:'trace-shapes',ico:'🔵',name:'Big shapes'},...['ABC','DEF','GHI','JKL','MNO','PQR','STU','VWX','YZ','123','456','789','0'].map(t=>({id:'trace-'+t,ico:'✏️',name:t}))];
+for(const p of TRACING)PICTURE_ART[p.id]=c=>{
+  c.save();c.strokeStyle='#8591ab';c.lineWidth=c.traceWidth||.45;c.setLineDash([1.3,1.3]);
+  if(p.id==='trace-trails'){
+    for(let row=0;row<3;row++){c.beginPath();c.moveTo(8,22+row*28);for(let x=8;x<92;x++)c.lineTo(x,22+row*28+Math.sin((x-8)/8)*8);c.stroke();}
+  }else if(p.id==='trace-shapes'){ring(c,27,29,17);c.strokeRect(57,12,32,32);poly(c,[[26,57],[9,89],[43,89]],true);star(c,73,74,18);}
+  else{const text=p.id==='trace-name'?traceText:p.name;c.font='bold 35px sans-serif';c.textAlign='center';c.textBaseline='middle';c.strokeText(text,50,38,90);c.font='bold 25px sans-serif';c.strokeText(text,50,76,85);}
+  c.restore();
+};
+
+// Large tracing adventures, generated from simple geometry, all available offline.
+function traceStyle(c){c.strokeStyle='#96a0b8';c.lineWidth=c.traceWidth||.45;c.setLineDash([1.5,1.1]);}
+function trailEnds(c,start,end){
+  c.save();c.setLineDash([]);c.lineWidth=(c.traceWidth||.45)*1.25;c.strokeStyle='#23866c';ring(c,...start,2.2);
+  c.strokeStyle='#b16a24';ring(c,...end,2.2);c.restore();
+}
+function maze(c,cols,rows){
+  const cells=Array.from({length:cols*rows},()=>({walls:[true,true,true,true],seen:false}));
+  const stack=[0],parents=new Map();cells[0].seen=true;let rand=rows*139+cols;
+  const random=()=>{rand=(Math.imul(rand,1664525)+1013904223)>>>0;return rand/4294967296;};
+  while(stack.length){
+    const i=stack[stack.length-1],x=i%cols,y=Math.floor(i/cols),options=[];
+    for(const [dx,dy,dir] of [[0,-1,0],[1,0,1],[0,1,2],[-1,0,3]]){
+      const xx=x+dx,yy=y+dy,j=yy*cols+xx;
+      if(xx>=0&&xx<cols&&yy>=0&&yy<rows&&!cells[j].seen)options.push({j,dir});
+    }
+    if(!options.length){stack.pop();continue;}
+    const {j,dir}=options[Math.floor(random()*options.length)];
+    cells[i].walls[dir]=false;cells[j].walls[(dir+2)%4]=false;cells[j].seen=true;parents.set(j,i);stack.push(j);
+  }
+  const dx=84/cols,dy=84/rows;cells[0].walls[3]=false;cells[cells.length-1].walls[1]=false;
+  c.save();c.setLineDash([]);c.lineWidth=(c.traceWidth||.45)*1.25;c.strokeStyle='#46516f';
+  for(let i=0;i<cells.length;i++){
+    const x=8+i%cols*dx,y=8+Math.floor(i/cols)*dy,w=cells[i].walls;
+    if(w[0])line(c,x,y,x+dx,y);if(w[3])line(c,x,y,x,y+dy);
+    if(i%cols===cols-1&&w[1])line(c,x+dx,y,x+dx,y+dy);
+    if(Math.floor(i/cols)===rows-1&&w[2])line(c,x,y+dy,x+dx,y+dy);
+  }
+  const route=[];let i=cells.length-1;
+  while(i!==undefined){route.unshift([8+(i%cols+.5)*dx,8+(Math.floor(i/cols)+.5)*dy]);i=parents.get(i);}
+  route.unshift([4,8+dy/2]);route.push([96,92-dy/2]);
+  traceStyle(c);c.strokeStyle='#b5bccd';poly(c,route,false);trailEnds(c,route[0],route[route.length-1]);c.restore();
+}
+const MORE_TRACING=[
+ ['trace-spiral','🌀','Spiral trail',c=>{const pts=[];for(let i=0;i<=220;i++){const a=i/220*TAU*3,r=3+i/220*40;pts.push([50+Math.cos(a)*r,50+Math.sin(a)*r]);}poly(c,pts);trailEnds(c,pts[0],pts[pts.length-1]);}],
+ ['trace-loops','➰','Loopy roads',c=>{for(let row=0;row<3;row++){c.beginPath();c.moveTo(7,20+row*29);for(let x=7;x<88;x+=20)c.bezierCurveTo(x+32,20+row*29-25,x-10,20+row*29+22,x+20,20+row*29);c.stroke();}trailEnds(c,[7,20],[87,78]);}],
+ ['trace-zigzag','⚡','Mountain trails',c=>{for(let row=0;row<3;row++){const pts=[];for(let i=0;i<7;i++)pts.push([8+i*14,18+row*28+(i%2?16:0)]);poly(c,pts);}trailEnds(c,[8,18],[92,74]);}],
+ ['trace-maze-easy','🏠','First maze',c=>maze(c,3,3)],
+ ['trace-maze-garden','🌳','Garden maze',c=>maze(c,5,4)],
+ ['trace-fractal-tree','🌿','Branching tree',c=>{function branch(x,y,len,a,depth){const xx=x+Math.cos(a)*len,yy=y+Math.sin(a)*len;line(c,x,y,xx,yy);if(depth){branch(xx,yy,len*.66,a-.57,depth-1);branch(xx,yy,len*.66,a+.57,depth-1);}}branch(50,94,34,-Math.PI/2,4);trailEnds(c,[50,94],[50,60]);}],
+ ['trace-snowflake','❄️','Fractal snowflake',c=>{function koch(a,b,n){if(!n){line(c,...a,...b);return;}const dx=(b[0]-a[0])/3,dy=(b[1]-a[1])/3,p=[a[0]+dx,a[1]+dy],q=[a[0]+2*dx,a[1]+2*dy],tip=[p[0]+dx*.5-dy*Math.sqrt(3)/2,p[1]+dy*.5+dx*Math.sqrt(3)/2];koch(a,p,n-1);koch(p,tip,n-1);koch(tip,q,n-1);koch(q,b,n-1);}const pts=[[50,8],[14,71],[86,71]];for(let i=0;i<3;i++)koch(pts[i],pts[(i+1)%3],2);trailEnds(c,[50,8],[50,8]);}],
+ ['trace-petals','🌸','Flower loops',c=>{for(let i=0;i<6;i++)oval(c,50+Math.cos(i*TAU/6)*19,50+Math.sin(i*TAU/6)*19,20,9,i*TAU/6);ring(c,50,50,8);}]
+];
+for(const [id,ico,name,draw] of MORE_TRACING){TRACING.push({id,ico,name});PICTURE_ART[id]=c=>{c.save();traceStyle(c);draw(c);c.restore();};}
+
+// Closed outlines, not tracing paths: every compartment is a bucket target.
+const PATTERNS=[
+ {id:'pattern-mosaic',ico:'▦',name:'Mosaic tiles'},
+ {id:'pattern-honeycomb',ico:'🐝',name:'Honeycomb'},
+ {id:'pattern-mandala',ico:'🌼',name:'Color wheel'},
+ {id:'pattern-glass',ico:'💎',name:'Stained glass'},
+ {id:'pattern-quilt',ico:'🔷',name:'Diamond quilt'},
+ {id:'pattern-bubbles',ico:'🫧',name:'Bubble garden'},
+ {id:'pattern-scales',ico:'🐟',name:'Rainbow scales'},
+ {id:'pattern-shapes',ico:'⭐',name:'Shape playground'},
+ {id:'pattern-rings',ico:'🎯',name:'Nested shapes'},
+ {id:'pattern-flowers',ico:'🌸',name:'Petal windows'}
+];
+Object.assign(PICTURE_ART,{
+ 'pattern-mosaic'(c){
+   c.strokeRect(5,5,90,90);
+   for(let i=1;i<5;i++){line(c,5+i*18,5,5+i*18,95);line(c,5,5+i*18,95,5+i*18);}
+   for(let row=0;row<5;row++)for(let col=0;col<5;col++){
+     const x=5+col*18,y=5+row*18;
+     if((row+col)%2)line(c,x,y,x+18,y+18);else ring(c,x+9,y+9,5);
+   }
+ },
+ 'pattern-honeycomb'(c){
+   const r=9,dy=Math.sqrt(3)*r;
+   for(let col=0;col<6;col++)for(let row=0;row<5;row++){
+     const x=12+col*r*1.5,y=11+row*dy+(col%2)*dy/2;
+     const pts=Array.from({length:6},(_,i)=>[x+r*Math.cos(i*TAU/6),y+r*Math.sin(i*TAU/6)]);poly(c,pts,true);
+   }
+ },
+ 'pattern-mandala'(c){
+   for(const r of [10,21,32,44])ring(c,50,50,r);
+   for(let i=0;i<12;i++){const a=i*TAU/12;line(c,50+Math.cos(a)*10,50+Math.sin(a)*10,50+Math.cos(a)*44,50+Math.sin(a)*44);}
+ },
+ 'pattern-glass'(c){
+   const edge=[[5,5],[35,5],[65,5],[95,5],[95,35],[95,65],[95,95],[65,95],[35,95],[5,95],[5,65],[5,35]];
+   for(let i=0;i<edge.length;i++)poly(c,[[47,46],edge[i],edge[(i+1)%edge.length]],true);
+   ring(c,47,46,16);ring(c,47,46,30);
+ },
+ 'pattern-quilt'(c){
+   for(let row=0;row<4;row++)for(let col=0;col<4;col++){
+     const x=6+col*22,y=6+row*22;c.strokeRect(x,y,22,22);
+     poly(c,[[x+11,y],[x+22,y+11],[x+11,y+22],[x,y+11]],true);
+   }
+ },
+ 'pattern-bubbles'(c){
+   for(let row=0;row<3;row++)for(let col=0;col<3;col++){
+     const x=20+col*30,y=20+row*30;ring(c,x,y,17);ring(c,x,y,8);
+   }
+ },
+ 'pattern-scales'(c){
+   for(let row=0;row<5;row++)for(let col=0;col<5;col++){
+     const x=6+col*18,y=8+row*18;
+     c.beginPath();c.moveTo(x,y);c.lineTo(x+18,y);c.quadraticCurveTo(x+18,y+16,x+9,y+18);c.quadraticCurveTo(x,y+16,x,y);c.closePath();c.stroke();
+   }
+ },
+ 'pattern-shapes'(c){
+   for(let row=0;row<3;row++)for(let col=0;col<3;col++){
+     const x=19+col*31,y=19+row*31;
+     switch((row*3+col)%4){case 0:star(c,x,y,13);break;case 1:ring(c,x,y,12);break;
+       case 2:poly(c,[[x,y-13],[x+13,y+11],[x-13,y+11]],true);break;default:c.strokeRect(x-11,y-11,22,22);}
+   }
+ },
+ 'pattern-rings'(c){
+   for(const [x,y] of [[26,26],[74,26],[26,74],[74,74]])for(const r of [7,14,21]){
+     if(x===y)ring(c,x,y,r);else poly(c,[[x,y-r],[x+r,y],[x,y+r],[x-r,y]],true);
+   }
+ },
+ 'pattern-flowers'(c){
+   for(const [x,y] of [[26,26],[74,26],[26,74],[74,74]]){
+     for(let i=0;i<6;i++){const a=i*TAU/6;oval(c,x+Math.cos(a)*11,y+Math.sin(a)*11,10,5,a);}
+     ring(c,x,y,6);
+   }
+ }
+});
+
+/* ==================================================================
+   3. Brush engine
+
+   Opacity belongs to individual dabs, not to an entire gesture. Repeated
+   passes accumulate pigment in #scratch; live and final composition match.
+   Bucket fills replace a region, and the eraser removes pigment.
+=================================================================== */
+const BRUSHES = {
+  crayon : {ico:'🖍️', name:'Crayon',  kind:'dab',  base:30, flow:1, gap:s=>s/9,  mix:true},
+  pencil : {ico:'✏️',  name:'Pencil',  kind:'dab',  base:7,  flow:1, gap:()=>.7,   mix:true},
+  marker : {ico:'🖊️',  name:'Marker',  kind:'dab',  base:30, flow:1, gap:s=>s/18, mix:true},
+  paint  : {ico:'🎨', name:'Paint',   kind:'dab',  base:54, flow:1, gap:s=>s/12, mix:true, drip:true},
+  spray  : {ico:'💨', name:'Spray',   kind:'dab',  base:58, flow:1, gap:s=>s/7,  mix:true, drip:true},
+  rainbow: {ico:'🌈', name:'Rainbow', kind:'dab', base:26, flow:1, gap:s=>s/10, mix:true},
+  neon   : {ico:'💡', name:'Neon',    kind:'dab', base:16, flow:1, gap:s=>s/8},
+  glitter: {ico:'✨', name:'Glitter', kind:'dab',  base:32, flow:1,  gap:s=>s/3.2, drip:true},
+  bubbles: {ico:'🫧', name:'Bubbles', kind:'dab',  base:48, flow:1, gap:s=>s*.8},
+  stamp  : {ico:'⭐', name:'Stamps',  kind:'dab',  base:62, flow:1,  gap:s=>s*.95},
+  fill   : {ico:'🪣', name:'Fill',    kind:'tap',  base:0,  flow:1},
+  eraser : {ico:'🧽', name:'Eraser',  kind:'wipe', base:52, flow:1}
+};
+const TOOL_ORDER = Object.keys(BRUSHES);
+
+const COLORS = ['#e53935','#f4511e','#fb8c00','#fdd835','#7cb342','#00c853','#00bcd4',
+                '#1e88e5','#3949ab','#8e24aa','#ec407a','#8d6e63','#212121','#ffffff'];
+
+const COLOR_NAMES=['Red','Red orange','Orange','Yellow','Light green','Green','Turquoise','Blue','Indigo','Purple','Pink','Brown','Black','White'];
+
+const STAMPS = ['⭐','❄️','💖','🌈','🦋','🐱','🐶','🐟','🦕','🦄','🐢','🐝',
+                '🌸','🍀','🍄','🍎','🍦','🎈','⚽','🚗','🚀','🌞','🌙','⚡'];
+
+let tool = 'fill', color = COLORS[0], stampChar = STAMPS[0];
+let penTilt = 0;
+let wetColor=null;
+let sizeMul = 1, symmetry = 1;
+
+function brushSize(key, pressure){
+  const b = BRUSHES[key], p = pressure == null ? .5 : pressure;
+  let s;
+  if (key === 'pencil')      s = b.base * (.55 + p * .6);
+  else if (key === 'eraser') s = b.base + p * 26;
+  else if (key === 'spray')  s = b.base * (.6 + p);
+  else                       s = b.base * (.45 + p * 1.1);
+  return s * sizeMul;
+}
+
+function rgbaOf(hex, a){
+  const n = parseInt(hex.slice(1),16);
+  return 'rgba(' + ((n>>16)&255) + ',' + ((n>>8)&255) + ',' + (n&255) + ',' + a + ')';
+}
+
+/* ---- deterministic-ish noise so crayon grain sits still ---- */
+let seed = 1;
+function rnd(){ seed = (Math.imul(seed,1664525)+1013904223)>>>0; return seed/4294967296; }
+
+// Cached material textures: pigment catches the same paper grain instead of
+// depositing unrelated confetti at every input event. All assets are generated offline.
+const grainCache=new Map(), tipCache=new Map();
+function grain(col){
+  if(grainCache.has(col))return grainCache.get(col);
+  const tile=document.createElement('canvas');tile.width=tile.height=128;
+  const c=tile.getContext('2d'),im=c.createImageData(128,128),rgb=rgbOf(col);
+  let n=9173;
+  for(let i=0;i<128*128;i++){
+    n=(Math.imul(n,1664525)+1013904223)>>>0;const v=n/4294967296;
+    im.data.set([...rgb,v<.14?0:Math.round(55+v*180)],i*4);
+  }
+  c.putImageData(im,0,0);const pattern=c.createPattern(tile,'repeat');
+  grainCache.set(col,pattern);return pattern;
+}
+function paintTip(col){
+  if(tipCache.has(col))return tipCache.get(col);
+  const tip=document.createElement('canvas');tip.width=tip.height=96;
+  const c=tip.getContext('2d'),im=c.createImageData(96,96),rgb=rgbOf(col);
+  for(let y=0;y<96;y++)for(let x=0;x<96;x++){
+    const nx=(x-47.5)/48,ny=(y-47.5)/48;
+    const radius=Math.hypot(nx,ny);
+    const edge=clamp((1-radius)/.19,0,1);
+    const bristle=.68+.18*Math.sin(y*2.3)+.1*Math.sin(y*.71);
+    const tooth=.86+.14*Math.sin(x*7.1+y*13.7);
+    im.data.set([...rgb,Math.round(edge*bristle*tooth*255)],(y*96+x)*4);
+  }
+  c.putImageData(im,0,0);if(tipCache.size>64)tipCache.clear();tipCache.set(col,tip);return tip;
+}
+const DAB = {
+  crayon(c,x,y,size,col){
+    c.save();c.fillStyle=grain(col);c.globalCompositeOperation='multiply';c.globalAlpha=.12+stroke.dyn*.1;
+    c.beginPath();c.ellipse(x,y,size*.49,size*.36,-.4,0,TAU);c.fill();c.restore();
+  },
+  pencil(c,x,y,size,col){
+    c.save();c.fillStyle=grain(col);c.globalCompositeOperation='multiply';c.globalAlpha=.18+stroke.dyn*.1;
+    c.beginPath();c.ellipse(x,y,size*.32,size*.26,-.4,0,TAU);c.fill();c.restore();
+  },
+  marker(c,x,y,size,col){
+    c.save();c.translate(x,y);c.rotate(-Math.PI/4+(penTilt/90)*.7);
+    c.fillStyle=col;c.globalCompositeOperation='multiply';c.globalAlpha=.075;
+    c.beginPath();c.roundRect(-size/2,-size*.2,size,size*.4,size*.11);c.fill();
+    c.restore();
+  },
+  paint(c,x,y,size,col){
+    c.save();c.translate(x,y);c.rotate(stroke.angle||0);
+    c.globalCompositeOperation='multiply';c.globalAlpha=.1+stroke.dyn*.05;
+    c.drawImage(paintTip(wetColor||col),-size*.5,-size*.38,size,size*.76);c.restore();
+  },
+  spray(c,x,y,size,col){
+    c.save();c.fillStyle=col;c.globalCompositeOperation='multiply';
+    for(let i=0;i<30+size*.35;i++){
+      const a=rnd()*TAU,r=Math.min(1.2,Math.sqrt(-2*Math.log(Math.max(.0001,rnd())))*.34)*size*.5;
+      const px=x+Math.cos(a)*r,py=y+Math.sin(a)*r;
+      c.globalAlpha=.08+rnd()*.18;
+      c.beginPath();c.arc(px,py,.3+rnd()*.85,0,TAU);c.fill();
+    }
+    c.restore();
+  },
+  rainbow(c,x,y,size){
+    stroke.hue=(stroke.hue+size*.055)%360;
+    c.save();c.globalCompositeOperation='multiply';c.globalAlpha=.13;
+    c.fillStyle=`hsl(${stroke.hue},82%,62%)`;
+    c.beginPath();c.arc(x,y,size/2,0,TAU);c.fill();c.restore();
+  },
+  neon(c,x,y,size,col){
+    c.save();
+    const glow=c.createRadialGradient(x,y,0,x,y,size);
+    glow.addColorStop(0,rgbaOf(col,.22));glow.addColorStop(.35,rgbaOf(col,.12));glow.addColorStop(1,rgbaOf(col,0));
+    c.fillStyle=glow;c.fillRect(x-size,y-size,size*2,size*2);
+    c.fillStyle=rgbaOf(col,.18);c.beginPath();c.arc(x,y,size*.25,0,TAU);c.fill();
+    c.fillStyle='rgba(255,255,255,.12)';c.beginPath();c.arc(x,y,size*.09,0,TAU);c.fill();c.restore();
+  },
+  glitter(c,x,y,size,col){
+    c.save();
+    for(let i=0;i<10;i++){
+      const a=rnd()*TAU,r=Math.sqrt(rnd())*size*.55;
+      const px=x+Math.cos(a)*r,py=y+Math.sin(a)*r,sz=.65+rnd()*2;
+      c.fillStyle=rnd()<.24?'#fff2bd':col;c.globalAlpha=.4+rnd()*.6;
+      c.save();c.translate(px,py);c.rotate(rnd()*TAU);c.fillRect(-sz/2,-sz/2,sz,sz);c.restore();
+    }
+    if(rnd()<.17){
+      const px=x+(rnd()-.5)*size,py=y+(rnd()-.5)*size,r=2+rnd()*3;
+      c.globalAlpha=.95;c.strokeStyle='#fff4cf';c.lineWidth=.8;
+      line(c,px-r,py,px+r,py);line(c,px,py-r,px,py+r);
+    }
+    c.restore();
+  },
+  bubbles(c,x,y,size,col){
+    const r=size*(.2+rnd()*.27),px=x+(rnd()-.5)*size*.35,py=y+(rnd()-.5)*size*.35;
+    c.save();
+    const wash=c.createRadialGradient(px-r*.25,py-r*.3,r*.05,px,py,r);
+    wash.addColorStop(0,rgbaOf(col,.015));wash.addColorStop(.75,rgbaOf(col,.04));wash.addColorStop(1,rgbaOf(col,.3));
+    c.fillStyle=wash;c.beginPath();c.arc(px,py,r,0,TAU);c.fill();
+    c.strokeStyle=rgbaOf(col,.55);c.lineWidth=Math.max(.7,size*.023);c.stroke();
+    c.strokeStyle='rgba(255,255,255,.92)';c.lineWidth=Math.max(1,size*.04);
+    c.beginPath();c.arc(px,py,r*.79,Math.PI*1.08,Math.PI*1.52);c.stroke();c.restore();
+  },
+  stamp(c,x,y,size){
+    c.save();c.globalAlpha=.72; c.translate(x,y); c.rotate((rnd()-.5)*.45);
+    c.font = size + 'px serif';
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText(stampChar, 0, 0);
+    c.restore();
+  }
+};
+
+/* ---- stroked brushes ---- */
+function strokeSeg(c,p1,p2,width,style){
+  c.strokeStyle = style; c.lineWidth = width; c.globalAlpha = 1;
+  c.beginPath();
+  c.moveTo(p1.x,p1.y);
+  if (p1.x === p2.x && p1.y === p2.y) c.lineTo(p2.x+.01,p2.y); else c.lineTo(p2.x,p2.y);
+  c.stroke();
+}
+
+/* ==================================================================
+   4. Stroke state
+=================================================================== */
+const stroke = {
+  active:false, pts:[], carry:0, hue:0, angle:0, size:12, dabbedOnce:false,
+  dyn:.55, tPrev:0, n:0, pen:false, lastFlat:0, flatAt:{x:0,y:0}
+};
+
+/* ---- sensitivity ----------------------------------------------------
+   A stylus reports real pressure. A finger and a mouse report a flat
+   0.5, so pressure alone gives a dead, uniform line. Speed is the
+   signal that is always there: a slow, deliberate stroke lays down a
+   fat dark line, a quick flick tapers to a thin one, which is how a
+   real crayon behaves. Pen pressure and speed are mixed when both are
+   available. The first few points ramp up so strokes start with a
+   point rather than a blob. ---------------------------------------- */
+function feedDynamics(p, prevP, tNow){
+  const dt   = Math.max(1, tNow - stroke.tPrev);
+  const dist = Math.hypot(p.x - prevP.x, p.y - prevP.y);
+  const speed = dist / dt;                       // pixels per millisecond
+  const target = 1 / (1 + speed * 0.32);
+  stroke.dyn = stroke.dyn * 0.72 + target * 0.28;
+  stroke.tPrev = tNow;
+  stroke.n++;
+}
+function effectivePressure(p){
+  const fromSpeed = clamp(0.36 + stroke.dyn * 0.6, 0.2, 1);
+  const base = stroke.pen ? (p.pressure * 0.6 + fromSpeed * 0.4) : fromSpeed;
+  const ramp = Math.min(1, 0.75 + stroke.n * 0.08);   // taper into the stroke
+  return clamp(base * ramp, 0.08, 1);
+}
+
+function segment(c, key, col, p1, p2, size, sym){
+  const b = BRUSHES[key];
+  const run = () => {
+    if (b.kind === 'line'){
+      if (key === 'rainbow'){
+        const d=Math.hypot(p2.x-p1.x,p2.y-p1.y),steps=Math.max(1,Math.ceil(d/2));
+        for(let i=0;i<steps;i++){
+          const a=i/steps,b=(i+1)/steps;
+          stroke.hue=(stroke.hue+d/steps*.65)%360;
+          strokeSeg(c,{x:p1.x+(p2.x-p1.x)*a,y:p1.y+(p2.y-p1.y)*a},
+            {x:p1.x+(p2.x-p1.x)*b,y:p1.y+(p2.y-p1.y)*b},size,`hsl(${stroke.hue},82%,62%)`);
+        }
+      } else {
+        strokeSeg(c, p1, p2, size, col);
+      }
+      return;
+    }
+    const dx = p2.x-p1.x, dy = p2.y-p1.y, d = Math.hypot(dx,dy);
+    if(d>0){
+      const target=Math.atan2(dy,dx),delta=Math.atan2(Math.sin(target-stroke.angle),Math.cos(target-stroke.angle));
+      stroke.angle+=delta*.25;
+    }
+    const gap = Math.max(.6, b.gap(size));
+    const dabs = [];
+    let t = stroke.carry;
+    if (d === 0){
+      if (!stroke.dabbedOnce){ dabs.push([p1.x,p1.y]); stroke.dabbedOnce = true; stroke.carry = gap; }
+    } else {
+      while (t <= d){ const f = t/d; dabs.push([p1.x+dx*f, p1.y+dy*f]); t += gap; }
+      stroke.carry = t - d;
+      stroke.dabbedOnce = true;
+    }
+    for (const p of dabs) DAB[key](c, p[0], p[1], size, col);
+  };
+  if (sym && symmetry > 1) mirrored(c, run); else run();
+}
+
+function mirrored(c, run){
+  const cx = vw/2, cy = vh/2;
+  const ops = symmetry === 2 ? [[1,1,0],[-1,1,0]]
+            : symmetry === 4 ? [[1,1,0],[-1,1,0],[1,-1,0],[-1,-1,0]]
+            : [];
+  if (symmetry === 8){
+    for (let i=0;i<4;i++){ ops.push([1,1,i*Math.PI/2]); ops.push([-1,1,i*Math.PI/2]); }
+  }
+  const initial={carry:stroke.carry,dabbedOnce:stroke.dabbedOnce,hue:stroke.hue,angle:stroke.angle};
+  const initialSeed=seed;
+  for (const o of ops){
+    Object.assign(stroke,initial);seed=initialSeed;
+    c.save();
+    c.translate(cx,cy); c.rotate(o[2]); c.scale(o[0],o[1]); c.translate(-cx,-cy);
+    run();
+    c.restore();
+  }
+}
+
+/* neon redraws its whole path each frame so the glow stays even */
+function repaintPath(c){
+  c.save(); c.setTransform(1,0,0,1,0,0);
+  c.clearRect(0,0,c.canvas.width,c.canvas.height);
+  c.restore();
+  const pts = stroke.pts;
+  if (pts.length < 1) return;
+  const w = stroke.size;
+  const run = () => {
+    c.lineWidth = w; c.lineJoin = 'round'; c.lineCap = 'round'; c.globalAlpha = 1;
+    c.beginPath();
+    c.moveTo(pts[0].x, pts[0].y);
+    if (pts.length === 1) c.lineTo(pts[0].x+.01, pts[0].y);
+    for (let i=1;i<pts.length-1;i++){
+      const m = {x:(pts[i].x+pts[i+1].x)/2, y:(pts[i].y+pts[i+1].y)/2};
+      c.quadraticCurveTo(pts[i].x, pts[i].y, m.x, m.y);
+    }
+    if (pts.length > 1) c.lineTo(pts[pts.length-1].x, pts[pts.length-1].y);
+    c.shadowColor = color; c.shadowBlur = w*1.7;
+    c.strokeStyle = color; c.stroke();
+    c.stroke();
+    c.shadowBlur = w*.5;
+    c.strokeStyle = '#ffffff'; c.lineWidth = Math.max(1.6, w*.3);
+    c.stroke();
+    c.shadowBlur = 0;
+  };
+  if (symmetry > 1) mirrored(c, run); else run();
+}
+
+/* Pigment tools multiply against existing ink. White and dark paper use
+   ordinary coverage so light-colored media remain visible. */
+function paperIsDark(){ return paperId === 'night'; }
+function blendFor(key){
+  if (!BRUSHES[key].mix || color==='#ffffff' || paperIsDark()) return 'source-over';
+  return 'multiply';
+}
+
+/* Wet media continue to deposit material when held still. */
+let wetTimer = null;
+
+function wetTick(){
+  if (!stroke.active) return;
+  const b = BRUSHES[tool];
+  if (!b || !b.drip || b.kind !== 'dab' || !prev) return;
+
+  feedDynamics(prev, prev, performance.now());     // standing still means slow
+  stroke.dabbedOnce = false;
+  const size = brushSize(tool, effectivePressure(prev));
+  segment(sctx, tool, color, prev, prev, size, true);
+  settleIfLingering();
+}
+
+function settleIfLingering(){
+  // Keep a single wet stroke intact: periodic flattening creates dark seams.
+}
+
+// Compose preview and final pigment with the same Canvas blend operation.
+// CSS blending against the page used to change the color on pointer release.
+const live=document.getElementById('live'),lctx=live.getContext('2d');
+let liveFrame=0;
+function previewStroke(){
+  if(!stroke.active||BRUSHES[tool].kind==='wipe')return;
+  lctx.clearRect(0,0,live.width,live.height);
+  lctx.drawImage(art,0,0);
+  lctx.save();lctx.globalCompositeOperation=blendFor(tool);lctx.globalAlpha=BRUSHES[tool].flow;
+  lctx.drawImage(scratch,0,0);lctx.restore();
+  live.style.display='block';art.style.visibility='hidden';
+  liveFrame=requestAnimationFrame(previewStroke);
+}
+
+function clearScratch(){
+  sctx.save(); sctx.setTransform(1,0,0,1,0,0);
+  sctx.clearRect(0,0,scratch.width,scratch.height);
+  sctx.restore();
+}
+function flattenScratch(flow, blend){
+  actx.save();
+  actx.setTransform(1,0,0,1,0,0);
+  actx.globalCompositeOperation = blend || 'source-over';
+  actx.globalAlpha = flow;
+  actx.drawImage(scratch, 0, 0);
+  actx.restore();
+  clearScratch();
+}
+
+/* ==================================================================
+   5. Pointer input
+=================================================================== */
+const hit = document.getElementById('hit');
+let activeId = null, prev = null;
+
+function at(e){
+  const r = hit.getBoundingClientRect();
+  let p = e.pressure;
+  if (!p || e.pointerType === 'mouse') p = .5;
+  return {x:(e.clientX-r.left-viewLeft)/viewScale,y:(e.clientY-r.top-viewTop)/viewScale,pressure:p};
+}
+
+hit.addEventListener('pointerdown', e => {
+  if (activeId !== null || sheetOpen() || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  e.preventDefault();
+  activeId = e.pointerId;
+  hit.setPointerCapture(e.pointerId);
+  const p = at(e);
+  const b = BRUSHES[tool];
+
+  if (b.kind === 'tap'){ bucketFill(p.x,p.y,color); chime(300,'sine'); return; }
+
+  history_.push();
+  stroke.active = true; stroke.pts = [p]; stroke.carry = 0; stroke.dabbedOnce = false;
+  stroke.dyn = .55; stroke.angle=0;stroke.hue=0; stroke.n = 0; stroke.tPrev = e.timeStamp || performance.now();
+  stroke.pen = (e.pointerType === 'pen');
+  stroke.size = brushSize(tool, effectivePressure(p));
+  seed = (Date.now() & 0xffff) | 1;
+  prev = p;
+  wetColor=null;
+  if(tool==='paint'){
+    const px=clamp(Math.round(p.x*dpr),0,art.width-1),py=clamp(Math.round(p.y*dpr),0,art.height-1);
+    const under=actx.getImageData(px,py,1,1).data;
+    if(under[3]>80){const rgb=rgbOf(color),amount=.28*under[3]/255;
+      wetColor='#'+rgb.map((v,i)=>Math.round(v*(1-amount)+under[i]*amount).toString(16).padStart(2,'0')).join('');}
+  }
+
+  if (b.kind === 'wipe'){ wipe(p,p); return; }
+  scratch.style.opacity = b.flow;
+  scratch.style.mixBlendMode = blendFor(tool) === 'source-over' ? 'normal' : blendFor(tool);
+  if (b.kind === 'path') repaintPath(sctx);
+  else segment(sctx, tool, color, p, p, stroke.size, true);
+  if (tool === 'stamp') chime(760,'triangle');
+  stroke.lastFlat = performance.now();
+  stroke.flatAt = {x:p.x, y:p.y};
+  clearInterval(wetTimer);
+  if (b.drip) wetTimer = setInterval(wetTick, 70);
+  previewStroke();
+});
+
+hit.addEventListener('pointermove', e => {
+  if (e.pointerId !== activeId || !stroke.active) return;
+  const b = BRUSHES[tool];
+  const raw = e.getCoalescedEvents ? e.getCoalescedEvents() : null;
+  const batch = (raw && raw.length) ? raw : [e];
+  for (const ev of batch){
+    const p = at(ev);
+    // A little stabilization removes hand jitter without a long trailing stroke.
+    if (tool === 'pencil' || tool === 'marker'){p.x=prev.x*.22+p.x*.78;p.y=prev.y*.22+p.y*.78;}
+    p.pressure = prev.pressure*.65 + p.pressure*.35;
+    if (Math.hypot(p.x-prev.x, p.y-prev.y) < .8 && b.kind !== 'wipe') continue;
+    feedDynamics(p, prev, ev.timeStamp || performance.now());
+    p.tilt = ev.tiltX || 0;
+    if (b.kind === 'path'){
+      stroke.pts.push(p);
+      if (stroke.pts.length > 600){        // commit the tail so long strokes stay cheap
+        stroke.size = brushSize(tool, effectivePressure(p));
+        repaintPath(sctx);
+        flattenScratch(b.flow, blendFor(tool));
+        stroke.pts = stroke.pts.slice(-2);
+      }
+      prev = p;
+      continue;
+    }
+    const size = brushSize(tool, effectivePressure(p));
+    penTilt = p.tilt;
+    if (b.kind === 'wipe') wipe(prev, p, size);
+    else { segment(sctx, tool, color, prev, p, size, true); settleIfLingering(); }
+    prev = p;
+  }
+  if (b.kind === 'path'){ stroke.size = brushSize(tool, effectivePressure(prev)); repaintPath(sctx); }
+});
+
+function finish(e){
+  if (e && e.pointerId !== activeId) return;
+  clearInterval(wetTimer); wetTimer = null;
+  cancelAnimationFrame(liveFrame);live.style.display='none';art.style.visibility='visible';
+  if (stroke.active){
+    const b = BRUSHES[tool];
+    if (b.kind !== 'wipe') flattenScratch(b.flow, blendFor(tool));
+    scratch.style.opacity = 1;
+    scratch.style.mixBlendMode = 'normal';
+    stroke.active = false; stroke.pts = [];
+    scheduleSave();
+  }
+  activeId = null; prev = null;wetColor=null;
+}
+hit.addEventListener('pointerup', finish);
+hit.addEventListener('pointercancel', finish);
+hit.addEventListener('lostpointercapture', finish);
+window.addEventListener('blur', () => finish(null));
+
+function wipe(p1,p2,size){
+  const run = () => {
+    actx.save();
+    actx.globalCompositeOperation = 'destination-out';
+    strokeSeg(actx, p1, p2, size || stroke.size, 'rgba(0,0,0,1)');
+    actx.restore();
+  };
+  if (symmetry > 1) mirrored(actx, run); else run();
+}
+
+window.addEventListener('contextmenu', e => e.preventDefault());
+window.addEventListener('gesturestart', e => e.preventDefault());
+
+/* ==================================================================
+   6. Paint bucket, bounded by printed outlines (or artwork on plain paper)
+=================================================================== */
+function rgbOf(h){ const n = parseInt(h.slice(1),16); return [(n>>16)&255,(n>>8)&255,n&255]; }
+
+function bucketFill(cx, cy, hex){
+  const W = art.width, H = art.height;
+  let x = Math.round(cx*dpr), y = Math.round(cy*dpr);
+  if (x < 0 || y < 0 || x >= W || y >= H) return;
+
+  const flat = document.createElement('canvas');
+  flat.width = W; flat.height = H;
+  const f = flat.getContext('2d', {willReadFrequently:true});
+  f.drawImage(paper,0,0);
+  const template=!!PICTURE_ART[paperId];
+  if (!template) f.drawImage(art,0,0);
+  const d = f.getImageData(0,0,W,H).data;
+
+  if(template && guidePixels && guidePixels[y*W+x]>0)return;
+  const i0 = (y*W+x)*4, tr = d[i0], tg = d[i0+1], tb = d[i0+2];
+  const [fr,fg,fb] = rgbOf(hex);
+  if (!template && (tr-fr)**2 + (tg-fg)**2 + (tb-fb)**2 < 400) return;
+  history_.push();
+
+  const TOL = 46*46*3;
+  const seen = new Uint8Array(W*H), mask = new Uint8Array(W*H);
+  const ok = i => {
+    if (seen[i] || (template && guidePixels && guidePixels[i]>16)) return false;
+    const o = i*4;
+    return (d[o]-tr)**2 + (d[o+1]-tg)**2 + (d[o+2]-tb)**2 <= TOL;
+  };
+
+  const stack = [x,y];
+  while (stack.length){
+    const py = stack.pop(), sx = stack.pop();
+    let px = sx, i = py*W+px;
+    while (px > 0 && ok(i-1)){ px--; i--; }
+    let up = false, down = false;
+    while (px < W && ok(i)){
+      seen[i] = 1; mask[i] = 1;
+      if (py > 0){
+        const u = i-W;
+        if (!up && ok(u)){ stack.push(px,py-1); up = true; }
+        else if (up && !ok(u)) up = false;
+      }
+      if (py < H-1){
+        const w = i+W;
+        if (!down && ok(w)){ stack.push(px,py+1); down = true; }
+        else if (down && !ok(w)) down = false;
+      }
+      px++; i++;
+    }
+  }
+
+  /* one-pixel grow so the fill tucks under the antialiased outline */
+  const out = f.createImageData(W,H), od = out.data;
+  for (let yy=0; yy<H; yy++){
+    for (let xx=0; xx<W; xx++){
+      const i = yy*W+xx;
+      let on = mask[i];
+      if (!on){
+        if (xx>0 && mask[i-1]) on = 1;
+        else if (xx<W-1 && mask[i+1]) on = 1;
+        else if (yy>0 && mask[i-W]) on = 1;
+        else if (yy<H-1 && mask[i+W]) on = 1;
+      }
+      if (!on) continue;
+      if(template && !mask[i] && !guidePixels[i])continue;
+      const o = i*4;
+      od[o] = fr; od[o+1] = fg; od[o+2] = fb; od[o+3] = 255;
+    }
+  }
+  const patch = document.createElement('canvas');
+  patch.width = W; patch.height = H;
+  patch.getContext('2d').putImageData(out,0,0);
+  actx.save(); actx.setTransform(1,0,0,1,0,0); actx.drawImage(patch,0,0); actx.restore();
+  scheduleSave();
+}
+
+/* ==================================================================
+   7. History
+=================================================================== */
+const history_ = (() => {
+  const undo = [], redo = [], MAX = 10;
+  function snap(){ return {image:copyOf(art),paper:paperId,seed:pageSeed,words:traceText,width:vw,height:vh,designWidth,designHeight}; }
+  function put(c){
+    if(!c)return;
+    designWidth=c.designWidth||c.width;designHeight=c.designHeight||c.height;
+    setDocumentSize(c.width,c.height);sizeLayers();
+    placeArtwork(c.image,c.width,c.height);
+    resizeSource={image:c.image,width:c.width,height:c.height,revision:++artRevision};
+    paperId=c.paper;pageSeed=c.seed;traceText=c.words||'HELLO';drawPaper();buildPaperSheet();
+  }
+  function trim(){
+    while(undo.length+redo.length>2 && [...undo,...redo].reduce((n,s)=>n+s.image.width*s.image.height,0)>20000000){
+      (undo.length>=redo.length?undo:redo).shift();
+    }
+  }
+  const api = {
+    push(){ artRevision++;undo.push(snap()); if (undo.length > MAX) undo.shift(); redo.length = 0; trim();api.ui(); },
+    undo(){ if (!undo.length) return; redo.push(snap()); put(undo.pop());trim(); api.ui(); chime(420,'sine'); scheduleSave(); },
+    redo(){ if (!redo.length) return; undo.push(snap()); put(redo.pop());trim(); api.ui(); chime(560,'sine'); scheduleSave(); },
+    reset(){ undo.length = 0; redo.length = 0; trim();api.ui(); },
+    ui(){
+      document.getElementById('btnUndo').disabled = !undo.length;
+      document.getElementById('btnRedo').disabled = !redo.length;
+    }
+  };
+  return api;
+})();
+
+function freshPage(){
+  finish();
+  history_.push();
+  actx.save(); actx.setTransform(1,0,0,1,0,0);
+  actx.clearRect(0,0,art.width,art.height); actx.restore();
+  clearScratch(); chime(240,'sine'); toast('Fresh page'); scheduleSave();
+}
+
+/* ==================================================================
+   8. Autosave, best effort. Silently off where storage is blocked.
+=================================================================== */
+let saveTimer = null, storageOK = true;
+function scheduleSave(){
+  if (!storageOK) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(save, 1500);
+}
+function save(){
+  try{
+    const s = 1;
+    const c = document.createElement('canvas');
+    c.width = Math.round(art.width*s); c.height = Math.round(art.height*s);
+    c.getContext('2d').drawImage(art,0,0,c.width,c.height);
+    localStorage.setItem('artstudio', JSON.stringify({paper:paperId, seed:pageSeed, words:traceText, width:vw, height:vh, designWidth, designHeight, img:c.toDataURL('image/png')}));
+  }catch(err){ storageOK = false; }
+}
+function load(){
+  try{
+    const raw = localStorage.getItem('artstudio');
+    if (!raw) return;
+    const o = JSON.parse(raw);
+    const initialPaper=paperId;
+    const initialUndo=document.getElementById('btnUndo').disabled;
+    pageSeed=Number(o.seed)||1;
+    const img = new Image();
+    img.onload = () => {
+      if (stroke.active || paperId!==initialPaper || !document.getElementById('btnUndo').disabled || !initialUndo) return;
+      const valid=Number.isFinite(o.width)&&Number.isFinite(o.height)&&o.width>=200&&o.width<=12000&&o.height>=200&&o.height<=12000;
+      const width=valid?o.width:vw,height=valid?o.height:vh;
+      designWidth=Number.isFinite(o.designWidth)&&o.designWidth>=200&&o.designWidth<=12000?o.designWidth:width;
+      designHeight=Number.isFinite(o.designHeight)&&o.designHeight>=200&&o.designHeight<=12000?o.designHeight:height;
+      setDocumentSize(width,height);sizeLayers();placeArtwork(img,width,height);
+      resizeSource={image:img,width,height,revision:++artRevision};
+      if (PLAIN.some(p=>p.id===o.paper)||PICTURE_ART[o.paper])paperId=o.paper;
+      traceText=typeof o.words==='string'?o.words.slice(0,16):'HELLO';
+      drawPaper();buildPaperSheet();
+    };
+    img.src = o.img;
+  }catch(err){ storageOK = false; }
+}
+
+/* ==================================================================
+   9. Sound
+=================================================================== */
+let audio = null, soundOn = true;
+function chime(freq,type){
+  if (!soundOn) return;
+  try{
+    if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+    if (audio.state === 'suspended') audio.resume();
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.type = type || 'sine'; o.frequency.value = freq;
+    g.gain.setValueAtTime(.0001, audio.currentTime);
+    g.gain.exponentialRampToValueAtTime(.07, audio.currentTime + .012);
+    g.gain.exponentialRampToValueAtTime(.0001, audio.currentTime + .17);
+    o.connect(g); g.connect(audio.destination);
+    o.start(); o.stop(audio.currentTime + .19);
+  }catch(err){}
+}
+
+/* ==================================================================
+   10. Touch controls
+   Large targets use completed taps so scrolling never selects paper or
+   clears artwork. Extra fingers cannot switch tools during a stroke.
+=================================================================== */
+let completedTap=null;
+for(const id of ['actions','rail','bottom','side']){
+  const panel=document.getElementById(id);
+  let tap=null;
+  panel.addEventListener('pointerdown',e=>{
+    const button=e.target.closest('button');
+    if(e.pointerType==='mouse'||!button||button.disabled||activeId!==null||tap)return;
+    tap={button,id:e.pointerId,x:e.clientX,y:e.clientY};
+    button.setPointerCapture(e.pointerId);
+    button.classList.add('press');
+  });
+  panel.addEventListener('pointerup',e=>{
+    if(!tap||tap.id!==e.pointerId)return;
+    const t=tap;tap=null;t.button.classList.remove('press');
+    completedTap={panel,time:performance.now()};
+    if(Math.hypot(e.clientX-t.x,e.clientY-t.y)<=28 && activeId===null){
+      e.preventDefault();t.button.click();
+    }
+  });
+  const cancel=()=>{if(tap)tap.button.classList.remove('press');tap=null;};
+  panel.addEventListener('pointercancel',cancel);
+  panel.addEventListener('lostpointercapture',cancel);
+}
+document.addEventListener('click',e=>{
+  if(e.isTrusted && e.detail!==0 && completedTap && performance.now()-completedTap.time<600 && completedTap.panel.contains(e.target)){
+    e.preventDefault();e.stopImmediatePropagation();
+  }
+},true);
+function forgiving(container, sel, pick){
+  container.addEventListener('click',e=>{
+    if(activeId!==null)return;
+    const el=e.target.closest(sel);
+    if(!el||!container.contains(el)||el.disabled)return;
+    pick(el);
+  });
+}
+
+/* ==================================================================
+   11. Interface
+=================================================================== */
+const rail   = document.getElementById('rail');
+const bottom = document.getElementById('bottom');
+const toolBtn = {};
+let toolPage=0,palettePage=0;
+
+for (const key of TOOL_ORDER){
+  const b = BRUSHES[key];
+  const el = document.createElement('button');
+  el.className = 'b tool' + (key === tool ? ' on' : '');
+  el.dataset.tool = key;
+  el.setAttribute('aria-label',b.name);
+  if(!['crayon','pencil','rainbow','stamp','fill','eraser'].includes(key))el.classList.add('extra');
+  el.innerHTML = `<span class="ico">${b.ico}</span><canvas width="180" height="40"></canvas><span class="cap">${b.name}</span>`;
+  rail.appendChild(el);
+  toolBtn[key] = el;
+}
+const moreTools=document.createElement('button');moreTools.className='moreButton';moreTools.id='moreTools';moreTools.textContent='🧰 More';moreTools.setAttribute('aria-label','More tools');rail.appendChild(moreTools);
+moreTools.addEventListener('click',()=>{if(activeId!==null)return;toolPage++;updateToolPage();});
+function updateToolPage(reveal=false){
+  const keys=document.body.classList.contains('allTools')?TOOL_ORDER:TOOL_ORDER.filter(k=>['crayon','pencil','rainbow','stamp','fill','eraser'].includes(k));
+  const horizontal=viewW()<=820;
+  const st=getComputedStyle(document.documentElement);
+  const dimension=parseFloat(st.getPropertyValue(horizontal?'--toolW':'--toolH'));
+  const available=horizontal?viewW()-36:viewH()-document.getElementById('topRow').offsetHeight-Math.max(bottom.offsetHeight,70)-60;
+  const capacity=Math.max(1,Math.floor((available+7)/(dimension+7))-1);
+  const pages=Math.ceil(keys.length/capacity);
+  if(reveal && keys.includes(tool))toolPage=Math.floor(keys.indexOf(tool)/capacity);
+  toolPage%=pages;
+  const shown=keys.slice(toolPage*capacity,(toolPage+1)*capacity);
+  for(const key of TOOL_ORDER)toolBtn[key].hidden=!shown.includes(key);
+  moreTools.hidden=pages<=1;
+  moreTools.style.width=horizontal?dimension+'px':'var(--toolW)';
+  moreTools.style.height=horizontal?'var(--toolH)':dimension+'px';
+  moreTools.textContent='🧰 '+(toolPage+1)+'/'+pages+' ▶';
+}
+forgiving(rail, '.tool', el => setTool(el.dataset.tool));
+
+/* --- live sample stroke inside every tool button --- */
+function drawSample(key){
+  const cv = toolBtn[key].querySelector('canvas');
+  const c = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  c.setTransform(1,0,0,1,0,0); c.clearRect(0,0,W,H);
+
+  if (key === 'eraser'){
+    c.fillStyle = '#c9cee0'; c.fillRect(0,H*.24,W,H*.52);
+    c.globalCompositeOperation = 'destination-out';
+    c.lineWidth = H*.55; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(W*.34,H/2); c.lineTo(W*.94,H/2); c.stroke();
+    c.globalCompositeOperation = 'source-over';
+    return;
+  }
+  if (key === 'fill'){
+    c.fillStyle = color; c.strokeStyle = '#8b91b0'; c.lineWidth = 3;
+    c.beginPath();
+    if (c.roundRect) c.roundRect(12,5,W-24,H-10,10); else c.rect(12,5,W-24,H-10);
+    c.fill(); c.stroke();
+    return;
+  }
+  if (key === 'stamp'){
+    c.font = (H*.86)+'px serif'; c.textAlign='center'; c.textBaseline='middle';
+    c.fillText(stampChar, W/2, H/2+1);
+    return;
+  }
+
+  /* run the real brush into a buffer, then composite at its flow */
+  const buf = document.createElement('canvas');
+  buf.width = W; buf.height = H;
+  const bc = buf.getContext('2d');
+  bc.lineCap = 'round'; bc.lineJoin = 'round';
+
+  const savedPts = stroke.pts, savedCarry = stroke.carry, savedSize = stroke.size,
+        savedDab = stroke.dabbedOnce, savedHue = stroke.hue, savedSeed = seed;
+  seed = 7;
+  stroke.carry = 0; stroke.dabbedOnce = false; stroke.hue = 0;
+
+  const size = clamp(brushSize(key,.6)*.55, 5, H*.8);
+  const pts = [];
+  for (let i=0;i<=30;i++){
+    const t = i/30;
+    pts.push({x: 11 + t*(W-22), y: H/2 + Math.sin(t*Math.PI*2)*(H*.2), pressure:.6});
+  }
+  if (BRUSHES[key].kind === 'path'){
+    stroke.pts = pts; stroke.size = size;
+    const savedColor = color;
+    repaintPath(bc);
+    color = savedColor;
+  } else {
+    for (let i=1;i<pts.length;i++) segment(bc, key, color, pts[i-1], pts[i], size, false);
+  }
+
+  stroke.pts = savedPts; stroke.carry = savedCarry; stroke.size = savedSize;
+  stroke.dabbedOnce = savedDab; stroke.hue = savedHue; seed = savedSeed;
+
+  c.globalAlpha = BRUSHES[key].flow;
+  c.drawImage(buf,0,0);
+  c.globalAlpha = 1;
+}
+function drawAllSamples(){ for (const k in toolBtn) drawSample(k); }
+
+function setTool(key){
+  if (!BRUSHES[key]) return;
+  if((tool==='stamp')!==(key==='stamp'))palettePage=0;
+  tool = key;
+  for (const k in toolBtn){toolBtn[k].classList.toggle('on', k === key);toolBtn[k].setAttribute('aria-pressed',k===key);}
+  document.getElementById('stTool').textContent = key === 'stamp' ? stampChar : BRUSHES[key].ico;
+  document.getElementById('stName').textContent = BRUSHES[key].name;
+  const nx = TOOL_ORDER[(TOOL_ORDER.indexOf(key)+1) % TOOL_ORDER.length];
+  document.getElementById('btnNext').querySelector('.ico').textContent = BRUSHES[nx].ico;
+  document.getElementById('btnNext').setAttribute('aria-label','Next tool: '+BRUSHES[nx].name);
+  buildBottom();
+  updateToolPage(true);
+  chime(320 + TOOL_ORDER.indexOf(key)*38, 'triangle');
+}
+
+document.getElementById('btnNext').addEventListener('click', e => {
+  if(activeId!==null)return;
+  e.preventDefault();
+  setTool(TOOL_ORDER[(TOOL_ORDER.indexOf(tool)+1) % TOOL_ORDER.length]);
+});
+
+/* --- bottom bar: colours, or stamps while the stamp tool is on --- */
+function buildBottom(){
+  bottom.innerHTML = '';
+  const count=tool==='stamp'?STAMPS.length:COLORS.length;
+  const sw=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--swD'));
+  const columns=Math.max(2,Math.floor((viewW()-48)/(sw+7)));
+  const rows=viewH()>500?2:1;
+  const capacity=columns*rows>=count?count:columns*rows-1;
+  bottom.style.gridTemplateColumns=`repeat(${Math.min(columns,count)},${sw}px)`;
+  const pages=Math.ceil(count/capacity);palettePage%=pages;
+  if (tool === 'stamp'){
+    for (const s of STAMPS.slice(palettePage*capacity,(palettePage+1)*capacity)){
+      const el = document.createElement('button');
+      el.className = 'st' + (s === stampChar ? ' on' : '');
+      el.dataset.stamp = s; el.textContent = s;el.setAttribute('aria-label','Stamp '+s);
+      bottom.appendChild(el);
+    }
+  } else {
+    for (const col of COLORS.slice(palettePage*capacity,(palettePage+1)*capacity)){
+      const el = document.createElement('button');
+      el.className = 'sw' + (col === color ? ' on' : '');
+      el.dataset.color = col; el.style.background = col;
+      el.setAttribute('aria-label',COLOR_NAMES[COLORS.indexOf(col)]);
+      el.setAttribute('aria-pressed',String(col===color));
+      if(col===color)el.innerHTML='<span class="colorCheck">✓</span>';
+      if (col === '#ffffff') el.style.borderColor = '#e3e7f2';
+      bottom.appendChild(el);
+    }
+  }
+  if(pages>1){
+    const more=document.createElement('button');more.className='moreButton';more.id='moreColors';more.style.width=sw+'px';more.style.height=sw+'px';more.textContent='More ▶';more.setAttribute('aria-label',tool==='stamp'?'More stamps':'More colors');
+    more.addEventListener('click',()=>{if(activeId!==null)return;palettePage++;buildBottom();});bottom.appendChild(more);
+  }
+}
+forgiving(bottom, '.sw,.st', el => {
+  if (el.dataset.color) setColor(el.dataset.color);
+  else setStamp(el.dataset.stamp);
+});
+
+function setColor(col){
+  color = col;
+  if (tool === 'eraser') setTool('crayon');
+  else buildBottom();
+  drawAllSamples();
+  document.getElementById('stDot').style.background = col;
+  chime(500,'sine');
+}
+function setStamp(s){
+  stampChar = s;
+  buildBottom(); drawSample('stamp');
+  document.getElementById('stTool').textContent = s;
+  chime(700,'triangle');
+}
+
+/* --- sizes and mirror --- */
+const side = document.getElementById('side');
+forgiving(side, '.size', el => {
+  side.querySelectorAll('.size').forEach(s => s.classList.remove('on'));
+  el.classList.add('on');
+  sizeMul = el.dataset.size === 'small' ? .45 : el.dataset.size === 'large' ? 2.1 : 1;
+  drawAllSamples();
+  chime(el.dataset.size === 'small' ? 620 : el.dataset.size === 'large' ? 300 : 460, 'square');
+});
+
+const MIRROR = [{n:1,ico:'🦋',cap:'Off'},{n:2,ico:'🪞',cap:'Mirror'},
+                {n:4,ico:'🍀',cap:'Four'},{n:8,ico:'❄️',cap:'Snowflake'}];
+document.getElementById('btnMirror').addEventListener('click', e => {
+  if(activeId!==null)return;
+  e.preventDefault();
+  const next = MIRROR[(MIRROR.findIndex(m => m.n === symmetry)+1) % MIRROR.length];
+  symmetry = next.n;
+  const b = document.getElementById('btnMirror');
+  b.querySelector('.ico').textContent = next.ico;
+  b.querySelector('.cap').textContent = next.cap;
+  toast(next.n === 1 ? 'Mirror off' : next.cap + ' magic');
+  chime(400 + next.n*40, 'triangle');
+});
+
+/* --- actions --- */
+const actions = document.getElementById('actions');
+forgiving(actions, '.act', el => {
+  const id = el.id;
+  if (id === 'btnUndo') history_.undo();
+  else if (id === 'btnRedo') history_.redo();
+  else if (id === 'btnPaper') openSheet('paperSheet');
+  else if (id === 'btnNew'){freshPage();toast('Fresh page · Undo brings it back');}
+});
+
+/* --- paper sheet --- */
+function paperButton(p){
+  const el = document.createElement('button');
+  el.className = 'b' + (p.id === paperId ? ' on' : '');
+  el.dataset.paper = p.id;
+  el.setAttribute('aria-label',p.name);
+  if(PICTURE_ART[p.id]){
+    const preview=document.createElement('canvas');preview.width=384;preview.height=288;preview.className='preview';
+    const c=preview.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,384,288);c.translate(72,24);c.scale(2.4,2.4);c.lineWidth=.55;c.traceWidth=.45;c.strokeStyle='#2b3157';c.lineJoin='round';c.lineCap='round';PICTURE_ART[p.id](c);el.appendChild(preview);
+  }else{const icon=document.createElement('span');icon.className='ico';icon.textContent=p.ico;el.appendChild(icon);}
+  const cap=document.createElement('span');cap.className='cap';cap.textContent=p.name;el.appendChild(cap);
+  return el;
+}
+const plainGrid = document.getElementById('plainGrid');
+const pictureGrid = document.getElementById('pictureGrid');
+let paperCategory='picture',paperPage=0;
+function buildPaperSheet(){
+  const groups={plain:PLAIN,picture:PICTURES,pattern:PATTERNS,trace:TRACING};
+  const cols=Math.max(2,Math.min(5,Math.floor(Math.min(872,viewW()-56)/130)));
+  const rows=Math.max(1,Math.min(3,Math.floor((viewH()-230)/130)));
+  const capacity=cols*rows;
+  const list=groups[paperCategory]||[];
+  const pages=Math.max(1,Math.ceil(list.length/capacity));paperPage=Math.min(paperPage,pages-1);
+  document.getElementById('paperCard').style.setProperty('--paper-cols',cols);
+  for(const [category,items] of Object.entries(groups)){
+    const grid=document.getElementById(category==='plain'?'plainGrid':category==='picture'?'pictureGrid':category==='pattern'?'patternGrid':'traceGrid');
+    grid.hidden=category!==paperCategory;grid.innerHTML='';
+    if(!grid.hidden)items.slice(paperPage*capacity,(paperPage+1)*capacity).forEach(p=>grid.appendChild(paperButton(p)));
+  }
+  document.querySelectorAll('#paperTabs button').forEach(b=>b.classList.toggle('on',b.dataset.category===paperCategory));
+  document.getElementById('wordForm').hidden=paperCategory!=='words';
+  document.getElementById('surprise').hidden=paperCategory!=='picture';
+  document.getElementById('paperPager').hidden=paperCategory==='words';
+  document.getElementById('paperPageNumber').textContent=(paperPage+1)+' / '+pages;
+  document.getElementById('paperPrev').disabled=paperPage===0;
+  document.getElementById('paperNext').disabled=paperPage===pages-1;
+}
+document.querySelectorAll('#paperTabs button').forEach(b=>b.addEventListener('click',()=>{paperCategory=b.dataset.category;paperPage=0;buildPaperSheet();}));
+document.getElementById('paperPrev').addEventListener('click',()=>{paperPage--;buildPaperSheet();});
+document.getElementById('paperNext').addEventListener('click',()=>{paperPage++;buildPaperSheet();});
+buildPaperSheet();
+const choosePaper = el => {
+  finish();history_.push();
+  designWidth=1000;designHeight=Math.round(1000*viewH()/viewW());
+  setDocumentSize(designWidth,designHeight);sizeLayers();
+  paperId = el.dataset.paper;
+  if(paperId.startsWith('trace-'))setTool('pencil');
+  else if(PICTURE_ART[paperId])setTool('fill');
+  drawPaper();
+  document.body.style.background = paperId === 'night' ? '#0d0f24' : '#14163a';
+  buildPaperSheet(); closeSheets(); chime(520,'sine'); scheduleSave();
+};
+forgiving(plainGrid, '.b', choosePaper);
+forgiving(pictureGrid, '.b', choosePaper);
+forgiving(document.getElementById('traceGrid'), '.b', choosePaper);
+forgiving(document.getElementById('patternGrid'), '.b', choosePaper);
+document.getElementById('wordForm').addEventListener('submit',e=>{
+  e.preventDefault();const word=document.getElementById('traceWords').value.trim();if(!word)return;
+  choosePaper({dataset:{paper:'trace-name'}});traceText=word.slice(0,16);drawPaper();buildPaperSheet();scheduleSave();
+});
+document.getElementById('surprise').addEventListener('click',()=>{
+  // History captures the old seed before generating the new template.
+  choosePaper({dataset:{paper:'surprise'}});
+  pageSeed=(Math.random()*4294967295)>>>0;drawPaper();buildPaperSheet();scheduleSave();
+});
+document.querySelectorAll('.closeSheet').forEach(b=>b.addEventListener('click',closeSheets));
+document.getElementById('gTools').addEventListener('click',()=>{
+  const on=document.body.classList.toggle('allTools');
+  document.querySelector('#gTools .cap').textContent=on?'Simple tools':'Show all tools';
+  sizeLayers();
+});
+for(const el of document.querySelectorAll('.size'))el.setAttribute('aria-label',el.dataset.size+' brush');
+
+
+/* --- sheets --- */
+function openSheet(id){ finish();closeSheets(); document.getElementById(id).classList.add('open');if(id==='paperSheet')buildPaperSheet(); }
+function closeSheets(){ document.querySelectorAll('.sheet').forEach(s => s.classList.remove('open')); }
+function sheetOpen(){ return !!document.querySelector('.sheet.open'); }
+document.querySelectorAll('.sheet').forEach(s => {
+  s.addEventListener('pointerdown', e => { if (e.target === s) closeSheets(); });
+});
+
+/* --- grown-up badge, hold to open --- */
+const grown = document.getElementById('grown');
+const grownFill = grown.querySelector('.fill');
+/* The original file toggled full screen from a single tap on this
+   button. That is one user gesture with nothing between it and
+   requestFullscreen, which is the most reliable shape a browser will
+   accept, so it is back: a short tap locks. It cannot UNlock, because a
+   toddler would find that in seconds. Unlocking still needs the hold,
+   which opens the grown-up menu. */
+let holdTimer = null, holdStart = 0, holdFired = false;
+function holdBegin(e){
+  if(holdTimer || activeId!==null)return;
+  e.preventDefault();
+  holdStart = Date.now(); holdFired = false;
+  holdTimer = setInterval(() => {
+    const p = Math.min(1,(Date.now()-holdStart)/3000);
+    grownFill.style.height = (p*100)+'%';
+    if (p >= 1){ holdFired = true; holdEnd(); openSheet('grownSheet'); chime(680,'sine'); }
+  }, 40);
+}
+function holdEnd(){ clearInterval(holdTimer); holdTimer = null; grownFill.style.height = '0%'; }
+function holdRelease(){
+  const held = Date.now() - holdStart;
+  const fired = holdFired;
+  holdEnd();
+  if (!fired && held < 3000 && !locked) setLocked(true);   // gesture goes straight through
+}
+grown.addEventListener('pointerdown', holdBegin);
+grown.addEventListener('pointerup', holdRelease);
+grown.addEventListener('pointerleave', holdEnd);
+grown.addEventListener('pointercancel', holdEnd);
+grown.addEventListener('keydown',e=>{if((e.key===' '||e.key==='Enter')&&!e.repeat)holdBegin(e);});
+grown.addEventListener('keyup',e=>{if(e.key===' '||e.key==='Enter')holdRelease();});
+grown.addEventListener('blur',holdEnd);
+document.addEventListener('dragstart',e=>e.preventDefault());
+
+document.getElementById('gClose').addEventListener('click', closeSheets);
+document.getElementById('gSound').addEventListener('click', () => {
+  soundOn = !soundOn;
+  const b = document.getElementById('gSound');
+  b.querySelector('.ico').textContent = soundOn ? '🔊' : '🔇';
+  b.querySelector('.cap').textContent = soundOn ? 'Sound on' : 'Sound off';
+  chime(600,'sine');
+});
+document.getElementById('gWipe').addEventListener('click', () => {
+  freshPage(); closeSheets();
+});
+document.getElementById('gSave').addEventListener('click', () => {
+  const out = document.createElement('canvas');
+  out.width = art.width; out.height = art.height;
+  const o = out.getContext('2d');
+  o.drawImage(paper,0,0); o.drawImage(art,0,0); o.drawImage(guideCanvas,0,0);
+  const a = document.createElement('a');
+  a.download = 'drawing-' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'-') + '.png';
+  a.href = out.toDataURL('image/png');
+  a.click();
+  closeSheets(); toast('Picture saved');
+});
+
+/* ==================================================================
+   12. Full screen, wake lock, kid lock
+   pushState throws on file:// pages, and iOS Safari has no Fullscreen
+   API for non-video elements, so every call here is guarded and the
+   grown-up sheet reports what actually took effect.
+=================================================================== */
+const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement || null;
+
+/* requestFullscreen exists in Chrome even when a permissions policy forbids
+   it. fullscreenEnabled is the flag that actually tells the truth, so the
+   old check reported "available" inside an embedded frame and then failed
+   silently. */
+const FS_METHOD  = !!(document.documentElement.requestFullscreen ||
+                      document.documentElement.webkitRequestFullscreen);
+const FS_ALLOWED = FS_METHOD && (document.fullscreenEnabled !== false) &&
+                                (document.webkitFullscreenEnabled !== false);
+const EMBEDDED   = (() => { try { return window.self !== window.top; } catch(err){ return true; } })();
+const IOS        = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const ANDROID    = /Android/.test(navigator.userAgent);
+const FIREFOX    = /Firefox\//.test(navigator.userAgent);
+const LINUX      = /Linux/.test(navigator.userAgent) && !ANDROID;
+const STANDALONE = window.navigator.standalone === true ||
+                   window.matchMedia('(display-mode: standalone)').matches ||
+                   window.matchMedia('(display-mode: fullscreen)').matches;
+
+/* What to tell a grown-up when the browser will not go full screen. */
+function whyNotFullscreen(){
+  if (STANDALONE) return '';
+  if (EMBEDDED) return 'This preview may not allow full screen. Open the HTML file directly in your browser.';
+  if (IOS) return 'Fullscreen support depends on your browser and device. Use Guided Access in Accessibility settings to restrict leaving the app.';
+  if (ANDROID) return 'Try browser fullscreen if supported. Android App pinning can restrict leaving the browser.';
+  if (!FS_ALLOWED) return 'This browser is refusing full screen for local files. Press F11 instead, or start the browser in kiosk mode.';
+  if (FIREFOX) return 'Press F11 or start Firefox in kiosk mode to hide browser controls. System shortcuts can still leave the browser.';
+  return 'The browser refused the full screen request. Press F11, or tap the banner to try again.';
+}
+
+function enterFullscreen(){
+  const el = document.documentElement;
+  const req = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (!req) return Promise.reject(new Error('unsupported'));
+  try { return Promise.resolve(req.call(el, {navigationUI:'hide'})); }
+  catch(err){ return Promise.reject(err); }
+}
+function leaveFullscreen(){
+  const ex = document.exitFullscreen || document.webkitExitFullscreen;
+  if (!ex || !fsEl()) return Promise.resolve();
+  try { return Promise.resolve(ex.call(document)).catch(()=>{}); } catch(err){ return Promise.resolve(); }
+}
+
+let wakeLock = null;
+async function keepAwake(on){
+  try{
+    if (on){
+      if ('wakeLock' in navigator && !wakeLock){
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release', () => { wakeLock = null; });
+      }
+    } else if (wakeLock){ await wakeLock.release(); wakeLock = null; }
+  }catch(err){ wakeLock = null; }
+}
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState==='hidden'){finish();save();}
+  if (locked && document.visibilityState === 'visible') keepAwake(true);
+});
+
+let navGuard = false;
+function armNavGuard(){
+  if(navGuard)return;
+  try { history.pushState({kidlock:1},'',location.href); navGuard = true; }
+  catch(err){ navGuard = false; }
+}
+window.addEventListener('popstate', () => {
+  if (!locked) return;
+  navGuard=false;armNavGuard(); toast('Hold the padlock for grown-ups');
+});
+window.addEventListener('beforeunload', e => {
+  if (!locked) return;
+  e.preventDefault(); e.returnValue = '';
+});
+
+let locked = false;
+
+/* A resolved promise does not prove we are actually full screen: a window
+   manager or a browser pref can refuse after the fact. Check the real
+   state a moment later and report honestly either way. */
+function verifyFullscreen(){
+  setTimeout(() => {
+    updateLockUI();
+    if (locked && !fsEl() && !STANDALONE) toast('Tap the full screen button to try again', 3200);
+  }, 600);
+}
+
+function setLocked(on){
+  locked = on;
+  if (on){
+    enterFullscreen()
+      .then(() => { updateLockUI(); verifyFullscreen(); })
+      .catch(() => { updateLockUI(); verifyFullscreen(); });
+    try {
+      if (navigator.keyboard && navigator.keyboard.lock){
+        const r = navigator.keyboard.lock(['Escape']);   // rejects in a frame
+        if (r && r.catch) r.catch(()=>{});
+      }
+    } catch(err){}
+    armNavGuard(); keepAwake(true);
+  } else {
+    leaveFullscreen();
+    try {
+      if (navigator.keyboard && navigator.keyboard.unlock){
+        const r = navigator.keyboard.unlock();
+        if (r && r.catch) r.catch(()=>{});
+      }
+    } catch(err){}
+    keepAwake(false);
+  }
+  updateLockUI(); closeSheets();
+  toast(on ? 'Child mode on · Hold 🔒 for grown-ups' : 'Child mode off', 2600);
+}
+function updateLockUI(){
+  const b = document.getElementById('gLock');
+  b.querySelector('.ico').textContent = locked ? '🔓' : '🔒';
+  b.querySelector('.cap').textContent = locked ? 'Kid lock off' : 'Kid lock on';
+  grown.classList.toggle('locked', locked);
+  grown.querySelector('.badge').textContent = locked ? '🔓' : '🔒';
+  const f = document.getElementById('gFull');
+  f.querySelector('.ico').textContent = fsEl() ? '🗗' : '⛶';
+  f.querySelector('.cap').textContent = fsEl() ? 'Leave full screen' : 'Full screen';
+  document.getElementById('lockRing').classList.toggle('show', locked);
+  const chip = document.getElementById('fsChip');
+  const needs = locked && !fsEl() && !STANDALONE;
+  document.getElementById('lockPill').classList.toggle('show', locked && !needs);
+  chip.classList.toggle('show', needs);
+  if (needs) chip.querySelector('span').textContent =
+    FS_ALLOWED ? 'Tap for full screen' : 'Full screen blocked here, tap to see why';
+  lockNote();
+}
+function lockNote(){
+  const bits = [];
+  bits.push(fsEl() ? 'Full screen is on.'
+        : STANDALONE ? 'Running as an installed app, so it is already full screen.'
+        : whyNotFullscreen());
+  bits.push('A web page cannot prevent tab switching, system shortcuts, or leaving the browser. Use device-level parental controls for a stronger lock.');
+  if (wakeLock) bits.push('The screen is being kept awake.');
+  if (!storageOK) bits.push('This browser blocks storage for local files, so the drawing is not saved between sessions.');
+  document.getElementById('lockNote').textContent = bits.join(' ');
+}
+/* ---- setup guide -------------------------------------------------
+   A web page cannot block an edge swipe or a home gesture. Only the
+   operating system can. These are the actual steps, per platform, and
+   they are shown up front rather than buried in a note. ------------ */
+function buildSetup(){
+  const box=document.getElementById('setupSteps');
+  box.innerHTML='<div class="step"><div class="n">1</div><div><h4>A little studio, all offline</h4><p>Choose a color and tap inside a picture with the bucket. Try crayons, rainbow paint and stamps. Paper has coloring adventures, tracing activities and endlessly generated surprise pages.</p></div></div>'+
+  '<div class="step"><div class="n">2</div><div><h4>Make room for creativity</h4><p>Tap the padlock to start child mode and request full screen. Hold it for three seconds for grown-up controls. Undo also brings back cleared pages and previous templates. Drawings save on this device when browser storage is available; Save picture exports a PNG.</p></div></div>'+
+  '<div class="step"><div class="n warn">!</div><div><h4>For a stronger lock</h4><p>A browser page cannot prevent tab switching, system shortcuts, or home gestures. '+
+  (IOS?'Use iOS Guided Access from Accessibility settings to restrict leaving the app. Fullscreen support varies by device and browser.':ANDROID?'Use Android App pinning in device settings; availability and exit gestures vary by device.':'Browser kiosk mode hides tabs and browser controls, but system shortcuts can still leave it. Use your operating system’s parental controls or a restricted child session for stronger protection.')+
+  '</p></div></div>';
+  document.getElementById('setupDone').textContent='Let’s paint!';
+}
+document.getElementById('gSetup').addEventListener('click', () => { buildSetup(); openSheet('setupSheet'); });
+document.getElementById('setupDone').addEventListener('click', () => {
+  closeSheets();
+  try { localStorage.setItem('artstudio-setup','1'); } catch(err){}
+});
+
+document.getElementById('gLock').addEventListener('click', () => setLocked(!locked));
+document.getElementById('gFull').addEventListener('click', () => {
+  if (fsEl()){ leaveFullscreen(); closeSheets(); return; }
+  enterFullscreen().then(() => { updateLockUI(); closeSheets(); })
+    .catch(() => { updateLockUI(); toast('Full screen was blocked, see the note below'); });
+});
+document.getElementById('fsChip').addEventListener('click', () => {
+  enterFullscreen().then(updateLockUI).catch(() => { buildSetup(); openSheet('setupSheet'); });
+});
+document.addEventListener('fullscreenchange', updateLockUI);
+document.addEventListener('webkitfullscreenchange', updateLockUI);
+
+/* ==================================================================
+   13. Odds and ends
+=================================================================== */
+let toastTimer = null;
+function toast(msg, ms){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), ms || 1400);
+}
+window.addEventListener('keydown', e => {
+  if(e.target instanceof HTMLInputElement)return;
+  if(activeId!==null || (locked && !sheetOpen())){e.preventDefault();return;}
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z'){
+    e.preventDefault(); e.shiftKey ? history_.redo() : history_.undo();
+  }
+  if (e.key === 'Escape') closeSheets();
+  if (e.key === '[' || e.key === ']'){
+    const i = TOOL_ORDER.indexOf(tool);
+    setTool(TOOL_ORDER[(i + (e.key === ']' ? 1 : TOOL_ORDER.length-1)) % TOOL_ORDER.length]);
+  }
+});
+
+let resizeTimer = null;
+function relayout(delay){
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => { sizeLayers(); drawAllSamples(); }, delay || 120);
+}
+window.addEventListener('resize', () => relayout());
+window.addEventListener('orientationchange', () => relayout(280));
+if (vp){
+  /* the toolbar sliding in or out changes the visible height without
+     firing a window resize on some mobile browsers */
+  vp.addEventListener('resize', () => relayout(80));
+  vp.addEventListener('scroll', () => {
+    document.documentElement.style.setProperty('--app-top', Math.round(vp.offsetTop)+'px');
+    document.documentElement.style.setProperty('--app-h', viewH()+'px');
+  });
+}
+document.addEventListener('fullscreenchange', () => relayout(60));
+
+try { history.pushState({base:1},'',location.href); } catch(err){}
+
+sizeLayers();
+buildBottom();
+setTool(tool);
+document.getElementById('stDot').style.background = color;
+updateLockUI();
+history_.ui();
+load();
+setTimeout(drawAllSamples, 60);
+try {
+  if (!localStorage.getItem('artstudio-setup')){ buildSetup(); openSheet('setupSheet'); }
+} catch(err){ buildSetup(); openSheet('setupSheet'); }
+history_.ui();
+new ResizeObserver(()=>sizeLayers()).observe(document.getElementById('stage'));
+</script>
+</body>
+</html>
