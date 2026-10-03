@@ -317,14 +317,13 @@ body.pickingPaper #actions{pointer-events:auto}
   padding:14px;gap:12px;overflow:hidden;border-radius:32px;background:linear-gradient(170deg,#fffaf0,#eef3ff 60%,#f6efff);
   grid-template-columns:72px minmax(0,1fr) 72px;grid-template-rows:auto minmax(0,1fr) auto;
   grid-template-areas:"tabs tabs tabs" "prev grid next" "foot foot foot";animation:sheetIn .28s cubic-bezier(.2,1.4,.4,1)}
-#paperTabs{grid-area:tabs;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+#paperTabs{grid-area:tabs;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 #paperTabs button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:0;min-height:68px;
   border:0;border-radius:20px;font-family:inherit;font-weight:800;font-size:14px;line-height:1.1;color:#39406a;cursor:pointer;padding:6px 2px;
   box-shadow:0 3px 0 #0000001a;transition:transform .15s}
 #paperTabs button b{font-size:30px;line-height:1}
 #paperTabs [data-category="picture"]{background:#ffe3e8}#paperTabs [data-category="pattern"]{background:#dff0ff}
 #paperTabs [data-category="trace"]{background:#fff1c9}#paperTabs [data-category="plain"]{background:#e3f7e8}
-#paperTabs [data-category="words"]{background:#efe5ff}
 #paperTabs button.on{background:#6554c0;color:#fff;transform:translateY(-2px) scale(1.04);box-shadow:0 5px 0 #3f2f8f}
 #paperCard .grid{grid-area:grid;min-height:0;gap:14px;grid-template-columns:repeat(var(--paper-cols,3),minmax(0,1fr));
   grid-auto-rows:minmax(0,1fr);animation:gridIn .3s ease-out}
@@ -344,7 +343,7 @@ body.pickingPaper #actions{pointer-events:auto}
   font-size:34px;cursor:pointer;box-shadow:0 5px 0 #3f2f8f}
 .pageArrow:disabled{visibility:hidden}
 #paperPrev{grid-area:prev}#paperNext{grid-area:next}
-#wordForm{grid-area:grid;align-self:center;padding:12px;font-weight:800;color:#39406a}
+#wordForm{margin:14px 0 0;font-weight:800;color:#39406a}
 #paperFoot{grid-area:foot;display:flex;align-items:center;gap:12px}
 #paperFoot .closeSheet{width:auto;min-width:150px;min-height:62px;border-radius:22px;padding:0 22px;font-family:inherit;font-weight:800;font-size:18px;
   color:#39406a;background:#fff;box-shadow:0 4px 0 #0000001a}
@@ -428,10 +427,9 @@ body.pickingPaper #actions{pointer-events:auto}
   <div id="phoneChoices"></div>
 </div></div>
 <div class="sheet" id="paperSheet"><div class="card" id="paperCard">
-  <div id="paperTabs"><button data-category="picture"><b>🎨</b>Color</button><button data-category="pattern"><b>🔷</b>Patterns</button><button data-category="trace"><b>✏️</b>Trace</button><button data-category="plain"><b>📄</b>Blank</button><button data-category="words"><b>✍️</b>Words</button></div>
+  <div id="paperTabs"><button data-category="picture"><b>🎨</b>Color</button><button data-category="pattern"><b>🔷</b>Patterns</button><button data-category="trace"><b>✏️</b>Trace</button><button data-category="plain"><b>📄</b>Blank</button></div>
   <button class="pageArrow" id="paperPrev" aria-label="Previous pages">◀</button>
   <div class="grid" id="plainGrid"></div><div class="grid" id="pictureGrid"></div><div class="grid" id="traceGrid"></div><div class="grid" id="patternGrid"></div>
-  <form id="wordForm"><label for="traceWords">A name or favorite word</label><div class="wordRow"><input id="traceWords" maxlength="16" placeholder="Type a word" autocomplete="off"><button type="submit">Make tracing paper</button></div></form>
   <button class="pageArrow" id="paperNext" aria-label="More pages">▶</button>
   <div id="paperFoot"><button class="closeSheet" aria-label="Back to drawing">✕ Back</button><div id="paperPager" aria-live="polite"></div></div>
 </div></div>
@@ -451,6 +449,7 @@ body.pickingPaper #actions{pointer-events:auto}
     <button class="b" id="gWipe"><span class="ico">🗑️</span><span class="cap">Erase all</span></button>
     <button class="b" id="gClose"><span class="ico">✅</span><span class="cap">Back to art</span></button>
   </div>
+  <form id="wordForm"><label for="traceWords">A name or favorite word</label><div class="wordRow"><input id="traceWords" maxlength="16" placeholder="Type a word" autocomplete="off"><button type="submit">Make tracing paper</button></div></form>
   <div id="grownOptions"></div>
   <p class="hint">Hold the padlock for three seconds to get back here. Child mode reduces interruptions; it cannot lock your device or prevent system shortcuts.</p>
   <p class="hint" id="lockNote" style="color:#232746;background:#f2f4fa;border-radius:14px;padding:10px 12px"></p>
@@ -2142,6 +2141,7 @@ forgiving(actions, '.act', el => {
 
 /* --- paper sheet --- */
 const TILE_COLORS=['#ffe3e8','#dff0ff','#fff1c9','#e3f7e8','#efe5ff','#ffe8d6','#d9f6f6','#fde2f3'];
+const PREVIEW_LINE=2.6;
 function paperButton(p,index){
   const el = document.createElement('button');
   el.className = 'b' + (p.id === paperId ? ' on' : '');
@@ -2154,9 +2154,18 @@ function paperButton(p,index){
   el.dataset.paper = p.id;
   el.setAttribute('aria-label',p.name);
   if(PICTURE_ART[p.id]){
-    // Bold preview lines read clearly at arm's length on a small screen.
-    const preview=document.createElement('canvas');preview.width=384;preview.height=288;preview.className='preview';
-    const c=preview.getContext('2d');c.translate(72,24);c.scale(2.4,2.4);c.lineWidth=1.25;c.traceWidth=.95;c.strokeStyle='#2b3157';c.lineJoin='round';c.lineCap='round';PICTURE_ART[p.id](c);el.appendChild(preview);
+    // Thick lines over the card's own colour: the silhouette has to read from
+    // across the room, not at reading distance.
+    const preview=document.createElement('canvas');
+    preview.width=560;preview.height=420;preview.className='preview';
+    const c=preview.getContext('2d');
+    c.fillStyle=TILE_COLORS[index%TILE_COLORS.length];
+    c.fillRect(0,0,preview.width,preview.height);
+    c.translate(105,35);c.scale(3.5,3.5);
+    c.lineWidth=PREVIEW_LINE;c.traceWidth=PREVIEW_LINE*.76;
+    c.strokeStyle='#232746';c.lineJoin='round';c.lineCap='round';
+    PICTURE_ART[p.id](c);
+    el.appendChild(preview);
   }else{
     const icon=document.createElement('span');icon.className='ico';icon.textContent=p.ico;
     icon.style.background=p.id==='night'?'#191b33':p.id==='cream'?'#fdf6e3':p.id==='sky'?'#eaf4ff':'#fff';if(p.id==='night')icon.style.color='#fff';el.appendChild(icon);
@@ -2167,12 +2176,11 @@ function paperButton(p,index){
 const plainGrid = document.getElementById('plainGrid');
 const pictureGrid = document.getElementById('pictureGrid');
 let paperCategory='picture',paperPage=0;
+/* Six cards, never twelve. A two-year-old cannot pick out a silhouette from a
+   grid of tiny tiles, and he would rather tap a big arrow than squint. */
 function paperGridSize(){
-  const W=viewW(),H=viewH(),narrow=W<=600||H<=500,short=H<=500;
-  const cardW=Math.min(1000,W-24),cardH=H-24;
-  const gridW=cardW-(narrow&&!short?20:28)-(narrow&&!short?0:2*(short?64:72)+24);
-  const gridH=cardH-(narrow?20:28)-(short?48:narrow?58:68)-(short?48:narrow?56:62)-(narrow&&!short?58+24:24);
-  return {cols:Math.max(2,Math.min(4,Math.round(gridW/240))),rows:Math.max(1,Math.min(3,Math.round(gridH/240)))};
+  const portraitPhone=phoneLayout() && viewH()>viewW();
+  return portraitPhone?{cols:2,rows:3}:{cols:3,rows:2};
 }
 function buildPaperSheet(){
   const groups={plain:PLAIN,picture:[{surprise:true},...PICTURES],pattern:PATTERNS,trace:TRACING};
@@ -2188,12 +2196,11 @@ function buildPaperSheet(){
     if(!grid.hidden)items.slice(paperPage*capacity,(paperPage+1)*capacity).forEach((p,i)=>grid.appendChild(paperButton(p,paperPage*capacity+i)));
   }
   document.querySelectorAll('#paperTabs button').forEach(b=>b.classList.toggle('on',b.dataset.category===paperCategory));
-  document.getElementById('wordForm').hidden=paperCategory!=='words';
-  const words=paperCategory==='words',pager=document.getElementById('paperPager');
-  pager.innerHTML=words?'':Array.from({length:pages},(_,i)=>`<i class="${i===paperPage?'on':''}"></i>`).join('');
+  const pager=document.getElementById('paperPager');
+  pager.innerHTML=Array.from({length:pages},(_,i)=>`<i class="${i===paperPage?'on':''}"></i>`).join('');
   pager.setAttribute('aria-label',`Page ${paperPage+1} of ${pages}`);
-  document.getElementById('paperPrev').disabled=words||paperPage===0;
-  document.getElementById('paperNext').disabled=words||paperPage===pages-1;
+  document.getElementById('paperPrev').disabled=paperPage===0;
+  document.getElementById('paperNext').disabled=paperPage===pages-1;
 }
 document.querySelectorAll('#paperTabs button').forEach(b=>onTap(b,()=>{
   if(paperCategory===b.dataset.category){chime(500,'sine',.04);return;}
@@ -2231,7 +2238,7 @@ forgiving(document.getElementById('traceGrid'), '[data-paper]', choosePaper);
 forgiving(document.getElementById('patternGrid'), '[data-paper]', choosePaper);
 document.getElementById('wordForm').addEventListener('submit',e=>{
   e.preventDefault();const word=document.getElementById('traceWords').value.trim();if(!word)return;
-  choosePaper({dataset:{paper:'trace-name'}});traceText=word.slice(0,16);drawPaper();buildPaperSheet();scheduleSave();
+  choosePaper({dataset:{paper:'trace-name'}});traceText=word.slice(0,16);drawPaper();buildPaperSheet();scheduleSave();closeSheets();
 });
 document.querySelectorAll('.closeSheet').forEach(b=>{b.addEventListener('click',closeSheets);onTap(b,closeSheets);});
 document.getElementById('gRedo').addEventListener('click',()=>{history_.redo();closeSheets();});
@@ -2262,7 +2269,10 @@ onTap(document.getElementById('phoneTools'),()=>openPhoneChoices('tools'));
 onTap(document.getElementById('phoneColors'),()=>openPhoneChoices('colors'));
 /* --- sheets --- */
 function openSheet(id){ finish();closeSheets(); document.getElementById(id).classList.add('open');
-  if(id==='paperSheet')buildPaperSheet(); updateSheetToggles(); }
+  // Always open on the first page: with six cards per page a remembered page
+  // number would put the Surprise card and his familiar pictures out of sight.
+  if(id==='paperSheet'){paperPage=0;buildPaperSheet();}
+  updateSheetToggles(); }
 function closeSheets(){
   if(sheetOpen())sheetClosedAt=performance.now();
   document.querySelectorAll('.sheet').forEach(s => s.classList.remove('open'));updatePhoneDock();

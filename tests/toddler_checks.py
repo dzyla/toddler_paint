@@ -272,5 +272,47 @@ with sync_playwright() as p:
     direct=page.evaluate('designHeight')
     assert abs(via_gallery-direct)<=1,(via_gallery,direct)
     assert not errors,errors
+
+    # --- Task 6: six bold cards he can actually tell apart ---
+    page=browser.new_page(viewport={'width':1024,'height':768},has_touch=True)
+    errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+    page.goto(URL);page.click('#setupDone');page.wait_for_timeout(300)
+    page.evaluate('soundOn=false')
+    for vw_,vh_ in [(1366,768),(1024,768),(768,1024),(390,844),(320,568),
+                    (375,667),(600,960),(844,390),(667,375),(568,320)]:
+        page.set_viewport_size({'width':vw_,'height':vh_});page.wait_for_timeout(300)
+        size=page.evaluate('paperGridSize()')
+        assert size['cols']*size['rows']==6,(vw_,vh_,size)
+        if vh_>vw_ and page.evaluate('phoneLayout()'):
+            assert size=={'cols':2,'rows':3},(vw_,vh_,size)
+        else:
+            assert size=={'cols':3,'rows':2},(vw_,vh_,size)
+        page.locator('#btnPaper').tap();page.wait_for_timeout(250)
+        cards=page.locator('#pictureGrid .b:visible').count()
+        assert 0<cards<=6,(vw_,vh_,cards)
+        # No scrolling anywhere in the picker.
+        assert page.evaluate("()=>{const c=document.getElementById('paperCard');"
+                             "return c.scrollHeight<=c.clientHeight+1 && c.scrollWidth<=c.clientWidth+1}"),(vw_,vh_)
+        # Previews are drawn boldly enough to read at arm's length.
+        assert page.evaluate("()=>PREVIEW_LINE>=2.5")
+        page.locator('#btnPaper').tap();page.wait_for_timeout(200)
+    page.set_viewport_size({'width':1024,'height':768});page.wait_for_timeout(300)
+
+    # Four tabs: Words needs typing, so it lives with the grown-ups now.
+    page.locator('#btnPaper').tap();page.wait_for_timeout(250)
+    assert page.locator('#paperTabs button').count()==4
+    assert page.locator('#paperTabs [data-category="words"]').count()==0
+
+    # The gallery always opens on the first page, so the cards he knows are in
+    # the same places every time. With six per page, a remembered page number
+    # would hide the Surprise card and the familiar first pictures.
+    page.locator('#paperNext').tap();page.wait_for_timeout(200)
+    assert page.evaluate('paperPage')==1
+    page.locator('#btnPaper').tap();page.wait_for_timeout(200)
+    page.locator('#btnPaper').tap();page.wait_for_timeout(250)
+    assert page.evaluate('paperPage')==0,page.evaluate('paperPage')
+    assert page.locator('#surprise').count()==1
+    page.locator('#btnPaper').tap();page.wait_for_timeout(200)
+    assert not errors,errors
     browser.close()
     print('PASS: instant taps, cards honoured at once, no post-pick scribbles, Next advances per tap, strokes stay in shapes, tracing earns stars, tap engine fires once per gesture, two-finger taps, ambiguous gaps refused')

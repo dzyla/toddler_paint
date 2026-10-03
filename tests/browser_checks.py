@@ -118,7 +118,11 @@ with sync_playwright() as p:
     # Generated pages and custom words round-trip through history and storage.
     page.click('#btnPaper');page.click('[data-category="picture"]');page.click('#surprise');seed=page.evaluate('pageSeed')
     page.click('#btnUndo');page.click('#btnRedo');assert page.evaluate('pageSeed')==seed
-    page.click('#btnPaper');page.click('[data-category="words"]');page.fill('#traceWords','River');page.click('#wordForm button')
+    # Word paper now lives in the grown-up sheet, not behind a gallery tab. The
+    # 3s hold that opens it is covered separately below; open it directly here so
+    # this check stays about the round-trip through history and storage.
+    page.evaluate("openSheet('grownSheet')")
+    page.fill('#traceWords','River');page.click('#wordForm button')
     assert page.evaluate('traceText')=='River'
     page.evaluate('save()');page.reload();page.wait_for_timeout(350)
     assert page.evaluate('paperId')=='trace-name' and page.evaluate('traceText')=='River'
@@ -169,7 +173,11 @@ with sync_playwright() as p:
     page.set_viewport_size({'width':1280,'height':900});page.wait_for_timeout(200)
     r=page.locator('#grown').bounding_box();page.mouse.move(r['x']+20,r['y']+20);page.mouse.down();page.wait_for_timeout(1400)
     assert not page.locator('#grownSheet').is_visible()
-    page.wait_for_timeout(1750);page.mouse.up();assert page.locator('#grownSheet').is_visible()
+    # The hold is 3s. Wait for it rather than racing a fixed 1750ms: this suite
+    # draws every template just above, and that work can stall setInterval past
+    # the old 150ms of slack, which made this assertion flaky either way.
+    page.locator('#grownSheet').wait_for(state='visible',timeout=8000)
+    page.mouse.up();assert page.locator('#grownSheet').is_visible()
     with page.expect_download() as d:page.click('#gSave')
     assert d.value.suggested_filename.endswith('.png')
     assert not errors,errors
@@ -204,7 +212,10 @@ with sync_playwright() as p:
         })()''')
         assert abs(circle['x']-circle['y'])<=2,circle
     rp.click('#btnPaper');rp.click('[data-category="pattern"]')
-    assert rp.locator('.preview').first.evaluate('(c)=>c.width')==384
+    # Previews render at 560x420 now, up from 384x288, so the thicker outlines
+    # stay crisp. Asserting a floor rather than an exact size keeps this check
+    # about resolution being high enough, not about one magic number.
+    assert rp.locator('.preview').first.evaluate('(c)=>c.width')>=560
     rp.screenshot(path='/tmp/patterns-retina.png')
     retina.close();browser.close()
     print('PASS: all 10 drawing tools accumulate within a stroke; pressed-pen crayon; smooth protected guides without white fringes; enclosed pattern fills; uniform scaling and retained margins; native Retina vectors; undo/save/export; every tool/template via taps; offline touch and four layouts')
