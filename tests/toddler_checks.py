@@ -183,5 +183,51 @@ with sync_playwright() as p:
     assert page.evaluate('artRevision')>before,(page.evaluate('artRevision'),before)
     finger('pointerup',34,hx+40,hy+40)
     assert not errors,errors
+
+    # --- Task 4: mashing must cost him nothing ---
+    page=browser.new_page(viewport={'width':1024,'height':768},has_touch=True)
+    errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+    page.goto(URL);page.click('#setupDone');page.wait_for_timeout(300)
+    page.evaluate('soundOn=false')
+    page.evaluate("choosePaper({dataset:{paper:'white'}});setTool('crayon')")
+    page.wait_for_timeout(250)
+    page.evaluate('history_.reset()')
+
+    assert page.evaluate('artIsEmpty()')==True
+
+    # artIsEmpty must be cheap even on the largest canvas, and never throw.
+    cost=page.evaluate('()=>{const t=performance.now();artIsEmpty();return performance.now()-t}')
+    assert cost<150,cost
+
+    # Draw something, then mash Clean ten times.
+    hit=page.locator('#hit').bounding_box()
+    page.mouse.move(hit['x']+hit['width']*.4,hit['y']+hit['height']*.4)
+    page.mouse.down()
+    for i in range(10):page.mouse.move(hit['x']+hit['width']*.4+i*12,hit['y']+hit['height']*.4+i*9)
+    page.mouse.up();page.wait_for_timeout(250)
+    assert page.evaluate('artIsEmpty()')==False
+    depth=page.evaluate('()=>undoDepth()')
+
+    box=page.locator('#btnNew').bounding_box()
+    cx,cy=box['x']+box['width']/2,box['y']+box['height']/2
+    for _ in range(10):
+        page.touchscreen.tap(cx,cy);page.wait_for_timeout(60)
+    assert page.evaluate('artIsEmpty()')==True
+    # Exactly one history entry for ten taps: the nine no-ops are free.
+    assert page.evaluate('()=>undoDepth()')==depth+1,(page.evaluate('()=>undoDepth()'),depth)
+    # And one Undo brings his drawing back.
+    page.locator('#btnUndo').tap();page.wait_for_timeout(350)
+    assert page.evaluate('artIsEmpty()')==False
+
+    # Re-choosing the page already open just closes the gallery.
+    page.locator('#btnPaper').tap();page.wait_for_timeout(200)
+    page.locator('[data-category="plain"]').tap();page.wait_for_timeout(200)
+    depth=page.evaluate('()=>undoDepth()')
+    revision=page.evaluate('artRevision')
+    page.locator('[data-paper="white"]').tap();page.wait_for_timeout(200)
+    assert page.locator('#paperSheet').is_hidden()
+    assert page.evaluate('()=>undoDepth()')==depth,(page.evaluate('()=>undoDepth()'),depth)
+    assert page.evaluate('artRevision')==revision
+    assert not errors,errors
     browser.close()
     print('PASS: instant taps, cards honoured at once, no post-pick scribbles, Next advances per tap, strokes stay in shapes, tracing earns stars, tap engine fires once per gesture, two-finger taps, ambiguous gaps refused')

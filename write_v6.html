@@ -1697,6 +1697,7 @@ const history_ = (() => {
     undo(){ if (!undo.length) return; redo.push(snap()); put(undo.pop());trim(); api.ui(); chime(420,'sine'); scheduleSave(); },
     redo(){ if (!redo.length) return; undo.push(snap()); put(redo.pop());trim(); api.ui(); chime(560,'sine'); scheduleSave(); },
     reset(){ undo.length = 0; redo.length = 0; trim();api.ui(); },
+    depth(){ return undo.length; },
     ui(){
       document.getElementById('btnUndo').disabled = !undo.length;
       document.getElementById('btnRedo').disabled = !redo.length;
@@ -1704,9 +1705,24 @@ const history_ = (() => {
   };
   return api;
 })();
+function undoDepth(){return history_.depth();}
+
+/* Ten taps on Clean must not cost him ten undo slots, so a Clean that would
+   change nothing records nothing. Early exit means the common case (art
+   present) stops within a few rows; the full scan only happens when the page
+   really is blank. */
+function artIsEmpty(){
+  const W=art.width,H=art.height;
+  if(!W||!H)return true;
+  let data;
+  try{data=actx.getImageData(0,0,W,H).data;}catch(err){return false;}
+  for(let i=3;i<data.length;i+=4)if(data[i])return false;
+  return true;
+}
 
 function freshPage(){
   finish();
+  if(artIsEmpty()){ chime(300,'sine',.04); return; }   // already clean: free
   history_.push();
   actx.save(); actx.setTransform(1,0,0,1,0,0);
   actx.clearRect(0,0,art.width,art.height); actx.restore();
@@ -2180,6 +2196,10 @@ onTap(document.getElementById('paperPrev'),()=>{paperPage--;buildPaperSheet();ch
 onTap(document.getElementById('paperNext'),()=>{paperPage++;buildPaperSheet();chime(700,'triangle');});
 buildPaperSheet();
 const choosePaper = el => {
+  // Tapping the page he is already on just puts the gallery away.
+  if(el.dataset.paper===paperId && el.dataset.paper!=='surprise'){
+    closeSheets(); chime(520,'sine',.04); return;
+  }
   finish();history_.push();
   const area=drawingBounds();
   designWidth=1000;designHeight=Math.round(1000*area.height/area.width);
