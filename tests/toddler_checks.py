@@ -539,5 +539,47 @@ with sync_playwright() as p:
         pass
     assert page.evaluate('settings.helper')==True,page.evaluate('settings.helper')
     assert not errors,errors
+
+    # --- The crayon runs thinner: base 30 was ~3% of the page width ---
+    page=browser.new_page(viewport={'width':1280,'height':900})
+    errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+    page.goto(URL);page.click('#setupDone');page.wait_for_timeout(300)
+    page.evaluate('soundOn=false')
+    assert page.evaluate('BRUSHES.crayon.base')==18,page.evaluate('BRUSHES.crayon.base')
+    assert page.evaluate("brushSize('crayon',.5)")==18
+    # Small / Medium / Large stay ordered and proportional.
+    widths=[]
+    for size in ['small','medium','large']:
+        page.evaluate(f"()=>{{sizeMul = '{size}'==='small'?.45:'{size}'==='large'?2.1:1}}")
+        widths.append(page.evaluate("brushSize('crayon',.5)"))
+    page.evaluate('sizeMul=1')
+    assert widths[0]<widths[1]<widths[2],widths
+    assert widths[1]==18 and abs(widths[0]-8.1)<.2 and abs(widths[2]-37.8)<.2,widths
+    assert not errors,errors
+
+    # --- Every new colouring page actually draws something ---
+    page=browser.new_page(viewport={'width':1280,'height':900})
+    errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+    page.goto(URL);page.click('#setupDone');page.wait_for_timeout(300)
+    page.evaluate('soundOn=false')
+    NEW=['cow','pig','duck','sheep','horse','rabbit','elephant','lion','monkey','giraffe',
+         'bear','penguin','octopus','crab','snail','starfish','shell','frog','plane',
+         'bus','digger','tractor','sun','moonstars']
+    for pid in NEW:
+        assert page.evaluate(f"typeof PICTURE_ART['{pid}']")=='function',pid
+        assert page.evaluate(f"PICTURES.some(p=>p.id==='{pid}')"),pid
+        # Ink on the outline layer, not a silently empty function.
+        ink=page.evaluate(f"""()=>{{
+          paperId='{pid}';drawPaper();
+          const cv=document.getElementById('outlines');
+          const d=cv.getContext('2d').getImageData(0,0,cv.width,cv.height).data;
+          let n=0;for(let i=3;i<d.length;i+=4)if(d[i]>40)n++;
+          return n;}}""")
+        assert ink>500,(pid,ink)
+    # Ids are unique, so no picture shadows another.
+    ids=page.evaluate('PICTURES.map(p=>p.id)')
+    assert len(ids)==len(set(ids)),[i for i in ids if ids.count(i)>1]
+    assert len(ids)==55,len(ids)
+    assert not errors,errors
     browser.close()
     print('PASS: instant taps, cards honoured at once, no post-pick scribbles, Next advances per tap, strokes stay in shapes, tracing earns stars, tap engine fires once per gesture, two-finger taps, ambiguous gaps refused')

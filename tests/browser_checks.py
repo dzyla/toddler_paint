@@ -151,7 +151,7 @@ with sync_playwright() as p:
             assert page.locator(sel).evaluate('(el)=>el.scrollHeight<=el.clientHeight+2 && el.scrollWidth<=el.clientWidth+2'),(width,height,sel)
         page.evaluate('closeSheets()')
         page.click('#btnPaper')
-        for category,expected in [('plain',7),('picture',31),('pattern',10),('trace',24)]:
+        for category,expected in [('plain',7),('picture',55),('pattern',10),('trace',24)]:
             page.click(f'[data-category="{category}"]');found=set()
             for _ in range(30):
                 found.update(page.locator('[data-paper]').evaluate_all('(els)=>els.map(el=>el.dataset.paper)'))

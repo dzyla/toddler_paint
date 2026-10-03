@@ -762,6 +762,292 @@ function curve(c,x1,y1,cx,cy,x2,y2){ c.beginPath(); c.moveTo(x1,y1); c.quadratic
 function ground(c,y){ line(c,3,y,97,y); }
 
 const PICTURE_ART = {
+  /* --- Farm and pets --- */
+  cow(c){
+    oval(c,52,58,26,16);
+    ring(c,26,42,13);
+    poly(c,[[18,32],[14,24],[22,27]]); poly(c,[[34,32],[38,24],[30,27]]);
+    ring(c,22,40,2.2); ring(c,31,40,2.2);
+    oval(c,24,49,7,5); ring(c,22,49,1.4); ring(c,27,49,1.4);
+    line(c,38,62,38,82); line(c,48,66,48,82); line(c,62,66,62,82); line(c,72,62,72,82);
+    curve(c,78,54,90,56,84,74);
+    oval(c,60,52,7,5); oval(c,44,64,6,4);
+    ground(c,82);
+  },
+  pig(c){
+    oval(c,50,56,26,19);
+    ring(c,30,44,12);
+    poly(c,[[22,35],[20,27],[28,31]]); poly(c,[[38,35],[40,27],[32,31]]);
+    oval(c,27,48,6,4); ring(c,25,48,1.2); ring(c,29,48,1.2);
+    ring(c,26,42,2); ring(c,34,42,2);
+    line(c,38,72,38,84); line(c,50,74,50,84); line(c,62,74,62,84); line(c,70,72,70,84);
+    curve(c,76,50,86,48,80,58);
+    ground(c,84);
+  },
+  duck(c){
+    oval(c,52,58,24,17);
+    ring(c,34,38,11);
+    oval(c,22,39,8,4); line(c,22,37,30,37);
+    ring(c,32,34,2);
+    curve(c,60,50,74,44,70,62);
+    line(c,46,74,46,84); line(c,58,74,58,84);
+    poly(c,[[40,84],[52,84],[46,88]]); poly(c,[[52,84],[64,84],[58,88]]);
+    curve(c,30,62,42,70,56,66);
+    ground(c,88);
+  },
+  sheep(c){
+    oval(c,58,56,22,14);
+    for(let i=0;i<9;i++){
+      const a=i/9*TAU;
+      ring(c,58+Math.cos(a)*22,56+Math.sin(a)*14,7);
+    }
+    oval(c,20,52,9,11);
+    ring(c,17,49,1.8); ring(c,24,49,1.8);
+    oval(c,20,59,4.5,3);
+    curve(c,13,45,7,38,15,37); curve(c,27,45,33,38,25,37);
+    line(c,46,72,46,86); line(c,58,74,58,86); line(c,70,72,70,86);
+    ground(c,86);
+  },
+  horse(c){
+    oval(c,50,48,19,27);
+    oval(c,50,73,13,10);
+    ring(c,45,74,1.8); ring(c,55,74,1.8);
+    ring(c,41,42,2.6); ring(c,59,42,2.6);
+    poly(c,[[35,24],[31,7],[45,20]],true);
+    poly(c,[[65,24],[69,7],[55,20]],true);
+    curve(c,40,25,50,9,60,25);
+    oval(c,50,44,4,13);
+    curve(c,38,60,50,66,62,60);
+  },
+  rabbit(c){
+    ring(c,50,54,18);
+    oval(c,42,24,6,16); oval(c,58,24,6,16);
+    ring(c,44,50,2.4); ring(c,56,50,2.4);
+    poly(c,[[47,57],[53,57],[50,61]],true);
+    line(c,38,58,24,54); line(c,38,61,24,63);
+    line(c,62,58,76,54); line(c,62,61,76,63);
+    curve(c,40,70,50,78,60,70);
+    ring(c,72,74,7);
+    ground(c,80);
+  },
+  /* --- Wild and zoo --- */
+  elephant(c){
+    ring(c,50,40,21);
+    oval(c,19,40,13,19); oval(c,81,40,13,19);
+    ring(c,42,36,2.6); ring(c,58,36,2.6);
+    c.beginPath(); c.moveTo(43,52); c.quadraticCurveTo(42,74,50,86); c.stroke();
+    c.beginPath(); c.moveTo(57,52); c.quadraticCurveTo(58,74,50,86); c.stroke();
+    for(let i=1;i<4;i++){
+      const y=56+i*8, w=6.5-i*.7;
+      line(c,50-w,y,50+w,y);
+    }
+    curve(c,36,56,31,68,36,76);
+    curve(c,64,56,69,68,64,76);
+  },
+  lion(c){
+    ring(c,50,42,22);
+    for(let i=0;i<12;i++){
+      const a=i/12*TAU;
+      line(c,50+Math.cos(a)*22,42+Math.sin(a)*22,50+Math.cos(a)*30,42+Math.sin(a)*30);
+    }
+    ring(c,43,39,2.4); ring(c,57,39,2.4);
+    oval(c,50,46,5,3.5);
+    curve(c,50,49,45,54,40,50); curve(c,50,49,55,54,60,50);
+    line(c,40,46,28,43); line(c,60,46,72,43);
+    ground(c,86);
+  },
+  monkey(c){
+    ring(c,50,40,17);
+    ring(c,32,36,7); ring(c,68,36,7);
+    oval(c,50,45,11,9);
+    ring(c,45,37,2.2); ring(c,55,37,2.2);
+    ring(c,50,44,1.6);
+    curve(c,43,49,50,54,57,49);
+    oval(c,50,70,14,14);
+    curve(c,64,66,80,62,74,48);
+    line(c,42,82,42,88); line(c,58,82,58,88);
+    ground(c,88);
+  },
+  giraffe(c){
+    oval(c,58,68,20,13);
+    poly(c,[[46,62],[42,30],[52,28],[56,62]],true);
+    oval(c,46,24,9,7);
+    ring(c,43,22,1.6);
+    oval(c,37,26,4,2.5);
+    line(c,42,17,40,10); ring(c,40,9,1.8);
+    line(c,50,17,52,10); ring(c,52,9,1.8);
+    for(const [x,y] of [[48,37],[50,47],[46,42],[52,55],[62,64],[70,70],[54,71]])ring(c,x,y,2.6);
+    line(c,48,80,48,90); line(c,60,80,60,90); line(c,70,78,70,90);
+    curve(c,76,62,87,66,81,78);
+    ground(c,90);
+  },
+  bear(c){
+    ring(c,50,40,19);
+    ring(c,36,24,7); ring(c,64,24,7);
+    ring(c,44,38,2.4); ring(c,56,38,2.4);
+    oval(c,50,46,7,5);
+    ring(c,50,45,1.6);
+    curve(c,50,49,45,53,41,49); curve(c,50,49,55,53,59,49);
+    oval(c,50,72,18,14);
+    oval(c,50,74,9,8);
+    line(c,38,84,38,88); line(c,62,84,62,88);
+    ground(c,88);
+  },
+  penguin(c){
+    oval(c,50,56,20,28);
+    oval(c,50,62,12,20);
+    ring(c,50,28,13);
+    ring(c,45,26,2); ring(c,55,26,2);
+    poly(c,[[46,32],[54,32],[50,38]],true);
+    curve(c,30,50,24,64,32,74);
+    curve(c,70,50,76,64,68,74);
+    poly(c,[[40,82],[34,88],[48,88]],true);
+    poly(c,[[60,82],[66,88],[52,88]],true);
+    ground(c,88);
+  },
+  /* --- Sea and bugs --- */
+  octopus(c){
+    ring(c,50,36,20);
+    ring(c,43,33,2.6); ring(c,57,33,2.6);
+    curve(c,43,43,50,48,57,43);
+    for(let i=0;i<6;i++){
+      const x=22+i*11.2;
+      c.beginPath();c.moveTo(x,52);
+      c.quadraticCurveTo(x-5+(i%2)*10,70,x+(i%2?4:-4),84);
+      c.stroke();
+    }
+    ring(c,16,20,4); ring(c,84,24,3);
+  },
+  crab(c){
+    oval(c,50,52,24,15);
+    ring(c,43,48,2.4); ring(c,57,48,2.4);
+    curve(c,42,58,50,63,58,58);
+    ring(c,22,40,7); ring(c,78,40,7);
+    line(c,28,45,38,50); line(c,72,45,62,50);
+    for(let i=0;i<3;i++){
+      line(c,34-i*2,64,24-i*5,74+i*4);
+      line(c,66+i*2,64,76+i*5,74+i*4);
+    }
+    ground(c,86);
+  },
+  snail(c){
+    for(let i=0;i<3;i++)ring(c,56,52,20-i*6.5);
+    oval(c,30,66,16,9);
+    ring(c,20,64,2);
+    line(c,18,58,14,48); ring(c,13,46,2.2);
+    line(c,25,57,23,47); ring(c,22,45,2.2);
+    curve(c,20,74,40,78,60,74);
+    ground(c,76);
+  },
+  starfish(c){
+    const pts=[];
+    for(let i=0;i<10;i++){
+      const a=-Math.PI/2+i/10*TAU, r=i%2?14:34;
+      pts.push([50+Math.cos(a)*r,50+Math.sin(a)*r]);
+    }
+    poly(c,pts,true);
+    ring(c,50,50,9);
+    for(let i=0;i<5;i++){
+      const a=-Math.PI/2+i/5*TAU;
+      ring(c,50+Math.cos(a)*20,50+Math.sin(a)*20,2.6);
+    }
+  },
+  shell(c){
+    const cx=50, cy=86, R=52, A=Math.PI*1.14, SPAN=Math.PI*.72;
+    c.beginPath();
+    c.moveTo(cx,cy);
+    c.arc(cx,cy,R,A,A+SPAN);
+    c.closePath(); c.stroke();
+    for(let i=1;i<6;i++){
+      const a=A+SPAN*i/6;
+      line(c,cx,cy,cx+Math.cos(a)*R,cy+Math.sin(a)*R);
+    }
+    for(let i=0;i<6;i++){
+      const a1=A+SPAN*i/6, a2=A+SPAN*(i+1)/6, am=(a1+a2)/2;
+      curve(c,cx+Math.cos(a1)*R,cy+Math.sin(a1)*R,
+              cx+Math.cos(am)*(R+7),cy+Math.sin(am)*(R+7),
+              cx+Math.cos(a2)*R,cy+Math.sin(a2)*R);
+    }
+    oval(c,cx,cy-3,9,5);
+  },
+  frog(c){
+    oval(c,50,58,26,19);
+    ring(c,38,38,9); ring(c,62,38,9);
+    ring(c,38,38,2.6); ring(c,62,38,2.6);
+    curve(c,36,56,50,66,64,56);
+    curve(c,26,66,20,78,34,80);
+    curve(c,74,66,80,78,66,80);
+    for(let i=0;i<3;i++){line(c,28-i*3,80,22-i*4,86);line(c,72+i*3,80,78+i*4,86);}
+    oval(c,44,50,5,3.5); oval(c,58,50,5,3.5);
+    ground(c,86);
+  },
+  /* --- Vehicles and sky --- */
+  plane(c){
+    oval(c,50,52,34,11);
+    poly(c,[[42,48],[52,22],[60,22],[56,48]],true);
+    poly(c,[[42,56],[52,80],[60,80],[56,56]],true);
+    poly(c,[[80,46],[92,34],[92,52]],true);
+    ring(c,30,50,4); ring(c,42,50,4); ring(c,54,50,4);
+    curve(c,16,48,22,44,30,46);
+    ring(c,12,20,4); ring(c,84,74,3);
+  },
+  bus(c){
+    poly(c,[[12,34],[88,34],[88,70],[12,70]],true);
+    line(c,12,44,88,44);
+    for(let i=0;i<4;i++)poly(c,[[18+i*18,48],[32+i*18,48],[32+i*18,62],[18+i*18,62]],true);
+    ring(c,28,74,8); ring(c,72,74,8);
+    ring(c,28,74,3); ring(c,72,74,3);
+    line(c,12,38,88,38);
+    ground(c,82);
+  },
+  digger(c){
+    poly(c,[[16,52],[52,52],[52,72],[16,72]],true);
+    poly(c,[[22,40],[46,40],[46,52],[22,52]],true);
+    line(c,34,40,34,52);
+    ring(c,26,76,8); ring(c,46,76,8);
+    ring(c,26,76,3); ring(c,46,76,3);
+    poly(c,[[52,56],[74,40]]); poly(c,[[74,40],[84,54]]);
+    poly(c,[[80,56],[92,56],[92,68],[78,68]],true);
+    ground(c,84);
+  },
+  tractor(c){
+    poly(c,[[22,46],[54,46],[54,66],[22,66]],true);
+    poly(c,[[28,34],[50,34],[50,46],[28,46]],true);
+    ring(c,70,62,16); ring(c,70,62,6);
+    ring(c,28,72,9); ring(c,28,72,3.4);
+    poly(c,[[54,52],[58,52],[58,66],[54,66]],true);
+    line(c,18,52,22,52);
+    for(let i=0;i<8;i++){
+      const a=i/8*TAU;
+      line(c,70+Math.cos(a)*16,62+Math.sin(a)*16,70+Math.cos(a)*19,62+Math.sin(a)*19);
+    }
+    ground(c,81);
+  },
+  sun(c){
+    ring(c,50,50,20);
+    for(let i=0;i<12;i++){
+      const a=i/12*TAU;
+      line(c,50+Math.cos(a)*24,50+Math.sin(a)*24,50+Math.cos(a)*36,50+Math.sin(a)*36);
+    }
+    ring(c,43,45,2.4); ring(c,57,45,2.4);
+    curve(c,42,55,50,62,58,55);
+  },
+  moonstars(c){
+    const A=1.377;
+    c.beginPath();
+    c.arc(44,48,26,-A,A,true);
+    c.arc(54,48,26,A,-A,false);
+    c.closePath(); c.stroke();
+    const star=(x,y,r)=>{
+      const pts=[];
+      for(let i=0;i<10;i++){
+        const a=-Math.PI/2+i/10*TAU, rr=i%2?r*.45:r;
+        pts.push([x+Math.cos(a)*rr,y+Math.sin(a)*rr]);
+      }
+      poly(c,pts,true);
+    };
+    star(80,22,10); star(86,54,7); star(70,78,8); star(26,84,6);
+  },
   fish(c){
     oval(c,44,50,28,18);
     poly(c,[[71,50],[95,32],[95,68]],true);
@@ -1017,6 +1303,7 @@ Object.assign(PICTURE_ART,{
   }
  }
 });
+for(const [id,ico,name] of [['cow','🐄','Cow'],['pig','🐷','Pig'],['duck','🦆','Duck'],['sheep','🐑','Sheep'],['horse','🐴','Horse'],['rabbit','🐰','Rabbit'],['elephant','🐘','Elephant'],['lion','🦁','Lion'],['monkey','🐵','Monkey'],['giraffe','🦒','Giraffe'],['bear','🐻','Bear'],['penguin','🐧','Penguin'],['octopus','🐙','Octopus'],['crab','🦀','Crab'],['snail','🐌','Snail'],['starfish','⭐','Starfish'],['shell','🐚','Shell'],['frog','🐸','Frog'],['plane','✈️','Plane'],['bus','🚌','Bus'],['digger','🚜','Digger'],['tractor','🛻','Tractor'],['sun','☀️','Sun'],['moonstars','🌙','Moon and stars']])PICTURES.push({id,ico,name});
 for(const [id,ico,name] of [['turtle','🐢','Turtle'],['ladybug','🐞','Ladybug'],['owl','🦉','Owl'],['castle','🏰','Castle'],['cupcake','🧁','Cupcake'],['whale','🐳','Whale'],['bee','🐝','Bee'],['mushroom','🍄','Mushroom'],['rainbowpage','🌈','Rainbow'],['kite','🪁','Kite'],['pizza','🍕','Pizza'],['garden','🌼','Garden'],['surprise','🎲','Shape party']])PICTURES.push({id,ico,name});
 const TRACING=[{id:'trace-name',ico:'✍️',name:'My words'},{id:'trace-trails',ico:'〰️',name:'Wiggly trails'},{id:'trace-shapes',ico:'🔵',name:'Big shapes'},...['ABC','DEF','GHI','JKL','MNO','PQR','STU','VWX','YZ','123','456','789','0'].map(t=>({id:'trace-'+t,ico:'✏️',name:t}))];
 for(const p of TRACING)PICTURE_ART[p.id]=c=>{
@@ -1156,7 +1443,7 @@ Object.assign(PICTURE_ART,{
    Bucket fills replace a region, and the eraser removes pigment.
 =================================================================== */
 const BRUSHES = {
-  crayon : {ico:'🖍️', name:'Crayon',  kind:'dab',  base:30, flow:1, gap:s=>s/9,  mix:true},
+  crayon : {ico:'🖍️', name:'Crayon',  kind:'dab',  base:18, flow:1, gap:s=>s/9,  mix:true},
   pencil : {ico:'✏️',  name:'Pencil',  kind:'dab',  base:7,  flow:1, gap:()=>.7,   mix:true},
   marker : {ico:'🖊️',  name:'Marker',  kind:'dab',  base:30, flow:1, gap:s=>s/18, mix:true},
   paint  : {ico:'🎨', name:'Paint',   kind:'dab',  base:54, flow:1, gap:s=>s/12, mix:true, drip:true},
