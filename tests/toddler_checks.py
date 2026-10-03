@@ -28,11 +28,14 @@ with sync_playwright() as p:
         assert page.evaluate('artRevision')==before,w
         assert page.locator('#paperSheet').is_hidden() and page.evaluate('paperId')=='cat',w
         # Three taps on Next picture advance three times: silence is what frustrates him.
-        page.wait_for_timeout(200)
-        box=page.locator('#btnNext').bounding_box()
-        for _ in range(3):
-            page.touchscreen.tap(box['x']+box['width']/2,box['y']+box['height']/2);page.wait_for_timeout(150)
-        assert page.evaluate('paperId')=='rocket',(w,page.evaluate('paperId'))
+        # Next picture sits on the right edge, which phones keep in the grown-up
+        # menu, because there the gallery covers picture-changing.
+        if not page.evaluate('phoneLayout()'):
+            page.wait_for_timeout(200)
+            box=page.locator('#btnNext').bounding_box()
+            for _ in range(3):
+                page.touchscreen.tap(box['x']+box['width']/2,box['y']+box['height']/2);page.wait_for_timeout(150)
+            assert page.evaluate('paperId')=='rocket',(w,page.evaluate('paperId'))
         assert not errors,errors
         page.close()
 
@@ -313,6 +316,48 @@ with sync_playwright() as p:
     assert page.evaluate('paperPage')==0,page.evaluate('paperPage')
     assert page.locator('#surprise').count()==1
     page.locator('#btnPaper').tap();page.wait_for_timeout(200)
+    assert not errors,errors
+
+    # --- Task 7: three tiles he can tell apart and cannot confuse ---
+    page=browser.new_page(viewport={'width':1024,'height':768},has_touch=True)
+    errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+    page.goto(URL);page.click('#setupDone');page.wait_for_timeout(300)
+    page.evaluate('soundOn=false')
+    for vw_,vh_ in [(1366,768),(1024,768),(768,1024),(390,844),(320,568),
+                    (375,667),(600,960),(844,390),(667,375),(568,320)]:
+        page.set_viewport_size({'width':vw_,'height':vh_});page.wait_for_timeout(300)
+        phone=page.evaluate('phoneLayout()')
+        ids=page.evaluate("()=>[...document.querySelectorAll('#actions button')]"
+                          ".filter(b=>b.offsetParent).map(b=>b.id)")
+        assert ids==['btnUndo','btnPaper','btnNew'],(vw_,vh_,ids)
+        floor=page.evaluate('clusterMinSize()')
+        assert floor==(64 if phone else 96),(vw_,vh_,floor,phone)
+        for id_ in ids:
+            box=page.locator('#'+id_).bounding_box()
+            assert box['width']>=floor-.5 and box['height']>=floor-.5,(vw_,vh_,id_,box,floor)
+        # A slip off New page must not be able to reach Clean.
+        gap=page.evaluate("""()=>{const p=document.getElementById('btnPaper').getBoundingClientRect();
+          const n=document.getElementById('btnNew').getBoundingClientRect();return n.left-p.right;}""")
+        assert gap>=15.5,(vw_,vh_,gap)
+        # Three channels of difference: colour, shape, icon size.
+        shapes=page.evaluate("()=>['btnUndo','btnPaper','btnNew'].map(i=>{"
+                             "const s=getComputedStyle(document.getElementById(i));"
+                             "return s.borderRadius+'|'+s.backgroundColor})")
+        assert len(set(shapes))==3,(vw_,vh_,shapes)
+        # Larger controls must not starve the paper. Half the viewport is the
+        # hard rule on phones. Tablet portrait at 768x1024 sat at .492 before any
+        # of this work, because the tool rail and the palette each wrap to two
+        # rows at that width; it is pinned here so it cannot slide further.
+        ratio=page.evaluate('drawingBounds().height/viewH()')
+        assert ratio>=(.5 if phone else .46),(vw_,vh_,ratio,phone)
+        # Right edge: Next picture plus three sizes, no mirror.
+        if not phone:
+            side=page.evaluate("()=>[...document.querySelectorAll('#side button')]"
+                               ".filter(b=>b.offsetParent).map(b=>b.id||b.dataset.size)")
+            assert side==['btnNext','small','medium','large'],(vw_,vh_,side)
+    page.set_viewport_size({'width':1024,'height':768});page.wait_for_timeout(300)
+    assert page.evaluate("!!document.getElementById('btnRedo')")==False
+    assert page.evaluate("!!document.getElementById('btnMirror')")==False
     assert not errors,errors
     browser.close()
     print('PASS: instant taps, cards honoured at once, no post-pick scribbles, Next advances per tap, strokes stay in shapes, tracing earns stars, tap engine fires once per gesture, two-finger taps, ambiguous gaps refused')

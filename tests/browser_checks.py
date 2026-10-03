@@ -17,6 +17,11 @@ with sync_playwright() as p:
     def tap(x,y):page.mouse.click(*world(x,y))
     def pixel(x,y,canvas='actx'):
         return page.evaluate(f'([x,y])=>Array.from({canvas}.getImageData(Math.floor(x*dpr),Math.floor(y*dpr),1,1).data)',[x,y])
+    def redo():
+        # Redo is a grown-up control now: it lives in the grown-up sheet as
+        # #gRedo, not as a tile in the child's action cluster.
+        page.evaluate("openSheet('grownSheet')")
+        page.click('#gRedo')
     def select_paper(id,category):
         page.click('#btnPaper');page.click(f'[data-category="{category}"]')
         for _ in range(30):
@@ -42,7 +47,7 @@ with sync_playwright() as p:
     assert pixel(5,5)[3]==0
     choose_color('#1e88e5');tap(x,y);assert pixel(x,y)==[30,136,229,255]
     page.click('#btnUndo');assert pixel(x,y)==[229,57,53,255]
-    page.click('#btnRedo');assert pixel(x,y)==[30,136,229,255]
+    redo();assert pixel(x,y)==[30,136,229,255]
     # Clicking any printed line does nothing and does not create an undo step.
     outline=page.evaluate('(()=>{const i=guidePixels.findIndex(v=>v>200);return [(i%art.width)/dpr,Math.floor(i/art.width)/dpr]})()')
     before=page.evaluate('art.toDataURL()');page.evaluate('([x,y])=>bucketFill(x,y,"#e53935")',outline)
@@ -63,7 +68,7 @@ with sync_playwright() as p:
     assert brightness(crossed)<brightness(first)-15,(first,crossed)
     preview=page.evaluate('live.toDataURL()');page.mouse.up();assert page.evaluate('art.toDataURL()')==preview
     page.click('#btnUndo');assert pixel(500,350)[3]==0
-    page.click('#btnRedo');assert pixel(500,350)==crossed
+    redo();assert pixel(500,350)==crossed
     # Pigment, coverage, and glow all build during uninterrupted retracing.
     def metrics():
         return page.evaluate('(()=>{const a=lctx.getImageData(450*dpr,335*dpr,100*dpr,30*dpr).data;let ink=0,alpha=0;for(let i=0;i<a.length;i+=4){alpha+=a[i+3];ink+=(765-a[i]-a[i+1]-a[i+2])*a[i+3]/255;}return {ink,alpha};})()')
@@ -117,7 +122,7 @@ with sync_playwright() as p:
     assert page.evaluate('(()=>{const i=guidePixels.findIndex(v=>v>200);const old=art.toDataURL();bucketFill((i%art.width)/dpr,Math.floor(i/art.width)/dpr,"#e53935");return art.toDataURL()===old;})()')
     # Generated pages and custom words round-trip through history and storage.
     page.click('#btnPaper');page.click('[data-category="picture"]');page.click('#surprise');seed=page.evaluate('pageSeed')
-    page.click('#btnUndo');page.click('#btnRedo');assert page.evaluate('pageSeed')==seed
+    page.click('#btnUndo');redo();assert page.evaluate('pageSeed')==seed
     # Word paper now lives in the grown-up sheet, not behind a gallery tab. The
     # 3s hold that opens it is covered separately below; open it directly here so
     # this check stays about the round-trip through history and storage.
