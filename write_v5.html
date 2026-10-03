@@ -232,22 +232,7 @@ button:disabled{opacity:.3!important;cursor:default}
 #rail .tool.extra{display:flex}
 #bottom{max-width:100%;width:max-content;justify-content:center}
 .moreButton{min-width:44px;min-height:44px;background:#e8e3fa;color:#47318b;font-weight:800;border:0;border-radius:16px;cursor:pointer;flex-shrink:0}
-#paperCard{display:flex;flex-direction:column;gap:8px;height:calc(var(--app-h) - 36px);max-height:none;max-width:min(900px,calc(100vw - 36px));padding:14px;overflow:hidden}
-#paperCard .sheetHeading{flex-shrink:0}
-#paperCard h2{font-size:19px}
-#paperTabs,#paperPager{display:flex;gap:6px;align-items:center;flex-shrink:0}
-#paperTabs button,#paperPager button{font-family:inherit;font-size:14px;font-weight:700;min-height:44px;border:0;border-radius:12px;background:#edf0fa;color:#293052;padding:8px;cursor:pointer;flex:1}
-#paperTabs button.on{background:#6554c0;color:white}
-#paperPager span{min-width:62px;text-align:center;font-weight:700}
-#paperCard #surprise{margin:0;padding:10px;min-height:44px;flex-shrink:0}
-#paperCard .grid{flex:1;min-height:0;gap:10px;grid-template-columns:repeat(var(--paper-cols,3),minmax(0,1fr));grid-auto-rows:minmax(0,1fr)}
-#paperCard .grid .b{height:100%;min-height:0;padding:8px;overflow:hidden}
-#paperCard .preview{min-height:0;height:calc(100% - 24px);max-height:180px}
-#wordForm{flex:1;padding:12px 0}
-@media(max-height:600px){#side{grid-template-columns:repeat(2,var(--actD));padding:6px;gap:5px}#paperCard{gap:5px;padding:8px}#paperCard .preview{max-height:90px}#paperCard h2{font-size:16px}}
-#paperTabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr))}
-#paperTabs button{min-width:0;padding:6px 2px;font-size:13px;overflow-wrap:normal}
-@media(max-width:560px){#paperTabs button{font-size:11px}}
+@media(max-height:600px){#side{grid-template-columns:repeat(2,var(--actD));padding:6px;gap:5px}}
 /* Toddler-sized controls: stable tiles rather than tiny circular targets. */
 #actions{gap:8px}
 #actions .cap{display:block;font-size:13px;opacity:1}
@@ -260,7 +245,6 @@ button:disabled{opacity:.3!important;cursor:default}
 button{touch-action:manipulation}
 button:active,button.press{filter:brightness(.9)}
 .closeSheet{min-width:56px;min-height:56px}
-#paperTabs button,#paperPager button{min-height:56px}
 @media(max-width:560px){
  #status{display:none}#topRow{gap:4px}#actions{padding:6px;gap:4px}
  #actions .cap{font-size:10px}#actions .ico{font-size:26px}
@@ -319,6 +303,84 @@ button:active,button.press{filter:brightness(.9)}
  .phone #phoneDock button{min-height:56px}
  .phone #phoneTray{padding-bottom:calc(72px + env(safe-area-inset-bottom))}
 }
+
+/* ---------------- toddler page picker ----------------
+   Big colorful cards, big arrows beside the grid, and the Back button at the
+   bottom: far from the New page button, so a double tap cannot close it. */
+#paperSheet{padding:12px;background:#1d1f4acc}
+#paperCard{display:grid;width:min(1000px,calc(100vw - 24px));max-width:none;height:calc(var(--app-h) - 24px);max-height:none;
+  padding:14px;gap:12px;overflow:hidden;border-radius:32px;background:linear-gradient(170deg,#fffaf0,#eef3ff 60%,#f6efff);
+  grid-template-columns:72px minmax(0,1fr) 72px;grid-template-rows:auto minmax(0,1fr) auto;
+  grid-template-areas:"tabs tabs tabs" "prev grid next" "foot foot foot";animation:sheetIn .28s cubic-bezier(.2,1.4,.4,1)}
+#paperTabs{grid-area:tabs;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+#paperTabs button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:0;min-height:68px;
+  border:0;border-radius:20px;font-family:inherit;font-weight:800;font-size:14px;line-height:1.1;color:#39406a;cursor:pointer;padding:6px 2px;
+  box-shadow:0 3px 0 #0000001a;transition:transform .15s}
+#paperTabs button b{font-size:30px;line-height:1}
+#paperTabs [data-category="picture"]{background:#ffe3e8}#paperTabs [data-category="pattern"]{background:#dff0ff}
+#paperTabs [data-category="trace"]{background:#fff1c9}#paperTabs [data-category="plain"]{background:#e3f7e8}
+#paperTabs [data-category="words"]{background:#efe5ff}
+#paperTabs button.on{background:#6554c0;color:#fff;transform:translateY(-2px) scale(1.04);box-shadow:0 5px 0 #3f2f8f}
+#paperCard .grid{grid-area:grid;min-height:0;gap:14px;grid-template-columns:repeat(var(--paper-cols,3),minmax(0,1fr));
+  grid-auto-rows:minmax(0,1fr);animation:gridIn .3s ease-out}
+#paperCard .grid .b{height:100%;min-height:0;padding:10px 10px 8px;overflow:hidden;border-radius:26px;gap:4px;
+  background:var(--tile,#fff);box-shadow:0 5px 0 #0000001c;transition:transform .12s}
+#paperCard .grid .b.press{transform:scale(.94)}
+#paperCard .preview{flex:1;width:100%;min-height:0;height:auto;max-height:none;background:#fff;border-radius:18px;padding:6px}
+#paperCard .grid .b .cap{font-size:clamp(13px,1.9vmin,17px);font-weight:800;opacity:1;color:#2d3358;flex:none}
+#paperCard .grid .b>.ico{flex:1;display:grid;place-items:center;width:100%;font-size:clamp(40px,8vmin,70px);background:#fff;border-radius:18px}
+#paperCard .grid .b.on{box-shadow:0 0 0 5px #ffb300,0 5px 0 #0000001c}
+#paperCard .grid .b.on::after{content:"⭐";position:absolute;top:4px;right:6px;font-size:22px}
+#paperCard .grid .b{position:relative}
+#surprise{position:static;margin:0;background:linear-gradient(135deg,#ffd54f,#ff8a65 50%,#ba68c8)!important;color:#fff}
+#surprise .ico{background:transparent!important;font-size:clamp(46px,9vmin,80px)!important}
+#surprise .cap{color:#fff!important}
+.pageArrow{align-self:center;width:72px;height:min(160px,100%);border:0;border-radius:24px;background:#6554c0;color:#fff;
+  font-size:34px;cursor:pointer;box-shadow:0 5px 0 #3f2f8f}
+.pageArrow:disabled{visibility:hidden}
+#paperPrev{grid-area:prev}#paperNext{grid-area:next}
+#wordForm{grid-area:grid;align-self:center;padding:12px;font-weight:800;color:#39406a}
+#paperFoot{grid-area:foot;display:flex;align-items:center;gap:12px}
+#paperFoot .closeSheet{width:auto;min-width:150px;min-height:62px;border-radius:22px;padding:0 22px;font-family:inherit;font-weight:800;font-size:18px;
+  color:#39406a;background:#fff;box-shadow:0 4px 0 #0000001a}
+#paperPager{flex:1;display:flex;justify-content:center;gap:10px}
+#paperPager i{width:14px;height:14px;border-radius:50%;background:#c9cde3}
+#paperPager i.on{background:#6554c0;transform:scale(1.3)}
+@keyframes sheetIn{from{transform:scale(.9);opacity:0}}
+@keyframes gridIn{from{transform:translateY(12px);opacity:0}}
+@media(max-width:600px),(max-height:500px){
+  #paperCard{padding:10px;gap:8px;border-radius:26px;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    grid-template-rows:auto minmax(0,1fr) auto auto;grid-template-areas:"tabs tabs" "grid grid" "prev next" "foot foot"}
+  .pageArrow{width:100%;height:58px;font-size:28px}
+  .pageArrow:disabled{visibility:visible;opacity:.25!important}
+  #paperTabs{gap:5px}#paperTabs button{min-height:58px;font-size:11px;border-radius:16px}#paperTabs button b{font-size:24px}
+  #paperCard .grid{gap:10px}
+  #paperFoot .closeSheet{min-height:56px;min-width:120px;font-size:16px}
+}
+@media(max-height:500px){
+  #paperCard{grid-template-columns:64px minmax(0,1fr) 64px;grid-template-rows:auto minmax(0,1fr) auto;
+    grid-template-areas:"tabs tabs tabs" "prev grid next" "foot foot foot"}
+  .pageArrow{width:64px;height:min(120px,100%)}
+  .pageArrow:disabled{visibility:hidden}
+  #paperTabs button{min-height:48px;flex-direction:row;gap:6px;font-size:13px}#paperTabs button b{font-size:20px}
+  #paperFoot .closeSheet{min-height:48px}
+}
+
+/* ---------------- delight and feedback ---------------- */
+#fx{position:fixed;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:45}
+@keyframes pop{0%{transform:scale(1)}35%{transform:scale(1.22) rotate(-4deg)}70%{transform:scale(.97)}100%{transform:scale(1.05)}}
+.tool.pop,.sw.pop,.st.pop{animation:pop .42s ease-out}
+@keyframes nudge{40%{transform:scale(1.06)}}
+#phoneDock button.pop{animation:nudge .35s ease-out}
+@keyframes pageIn{from{opacity:0;transform:scale(.94)}}
+#outlines.pageIn{animation:pageIn .45s cubic-bezier(.2,1.3,.4,1)}
+#stars{display:none;align-items:center;gap:4px;font-weight:900;font-size:18px;color:#b7791f;background:#fff6d6;
+  border-radius:999px;padding:6px 12px;pointer-events:none;flex:none}
+#stars.has{display:flex}
+.phone #stars{display:none!important}
+#stars.pop{animation:pop .5s ease-out}
+#phoneTray .card{animation:sheetIn .22s cubic-bezier(.2,1.4,.4,1)}
+@media(prefers-reduced-motion:reduce){#paperCard,#paperCard .grid,#outlines.pageIn,#phoneTray .card{animation:none}}
 </style>
 </head>
 <body class="allTools" style="--ink:#2f6bff">
@@ -330,18 +392,19 @@ button:active,button.press{filter:brightness(.9)}
   <div id="topRow">
     <div id="grown" role="button" tabindex="0" aria-label="Hold for three seconds for grown-up controls"><div class="fill"></div><span class="badge">🔒</span></div>
     <div id="status"><span class="big" id="stTool">🖍️</span><span id="stName">Crayon</span><span class="dot" id="stDot"></span></div>
+    <div id="stars" aria-live="polite"><span>⭐</span><span id="starCount">0</span></div>
     <div class="panel" id="actions">
       <button class="b act" id="btnUndo"><span class="ico">↩️</span><span class="cap">Undo</span></button>
       <button class="b act" id="btnRedo"><span class="ico">↪️</span><span class="cap">Redo</span></button>
-      <button class="b act" id="btnPaper"><span class="ico">📄</span><span class="cap">New page</span></button>
-      <button class="b act" id="btnNew"><span class="ico">🧼</span><span class="cap">Clean</span></button>
+      <button class="b act" id="btnPaper" data-cooldown="1000"><span class="ico">📄</span><span class="cap">New page</span></button>
+      <button class="b act" id="btnNew" data-cooldown="1000"><span class="ico">🧼</span><span class="cap">Clean</span></button>
     </div>
   </div>
 
   <div class="panel" id="rail"></div>
 
   <div class="panel" id="side">
-    <button class="b" id="btnNext" aria-label="Next picture"><span class="ico">🖼️</span><span class="cap">Next picture</span></button>
+    <button class="b" id="btnNext" aria-label="Next picture" data-cooldown="1000"><span class="ico">🖼️</span><span class="cap">Next picture</span></button>
     <button class="b size" data-size="small"><i style="width:8px;height:8px"></i></button>
     <button class="b size on" data-size="medium"><i style="width:16px;height:16px"></i></button>
     <button class="b size" data-size="large"><i style="width:26px;height:26px"></i></button>
@@ -360,12 +423,12 @@ button:active,button.press{filter:brightness(.9)}
   <div id="phoneChoices"></div>
 </div></div>
 <div class="sheet" id="paperSheet"><div class="card" id="paperCard">
-  <div class="sheetHeading"><h2>Pick an adventure</h2><button class="closeSheet" aria-label="Close paper picker">✕</button></div>
-  <div id="paperTabs"><button data-category="plain">📄 Blank</button><button data-category="picture">🎨 Color</button><button data-category="pattern">🔷 Patterns</button><button data-category="trace">〰️ Trace</button><button data-category="words">✍️ Words</button></div>
-  <button class="bigbtn" id="surprise">🎲 Make a surprise page</button>
+  <div id="paperTabs"><button data-category="picture"><b>🎨</b>Color</button><button data-category="pattern"><b>🔷</b>Patterns</button><button data-category="trace"><b>✏️</b>Trace</button><button data-category="plain"><b>📄</b>Blank</button><button data-category="words"><b>✍️</b>Words</button></div>
+  <button class="pageArrow" id="paperPrev" aria-label="Previous pages">◀</button>
   <div class="grid" id="plainGrid"></div><div class="grid" id="pictureGrid"></div><div class="grid" id="traceGrid"></div><div class="grid" id="patternGrid"></div>
   <form id="wordForm"><label for="traceWords">A name or favorite word</label><div class="wordRow"><input id="traceWords" maxlength="16" placeholder="Type a word" autocomplete="off"><button type="submit">Make tracing paper</button></div></form>
-  <div id="paperPager"><button id="paperPrev" aria-label="Previous pages">◀ Back</button><span id="paperPageNumber" aria-live="polite"></span><button id="paperNext" aria-label="Next pages">More ▶</button></div>
+  <button class="pageArrow" id="paperNext" aria-label="More pages">▶</button>
+  <div id="paperFoot"><button class="closeSheet" aria-label="Back to drawing">✕ Back</button><div id="paperPager" aria-live="polite"></div></div>
 </div></div>
 
 <div class="sheet" id="grownSheet"><div class="card">
@@ -377,6 +440,8 @@ button:active,button.press{filter:brightness(.9)}
     <button class="b" id="gLock"><span class="ico">🔒</span><span class="cap">Kid lock on</span></button>
     <button class="b" id="gRedo"><span class="ico">↪️</span><span class="cap">Redo</span></button>
     <button class="b" id="gMirror"><span class="ico">🦋</span><span class="cap">Mirror drawing</span></button>
+    <button class="b" id="gHelper"><span class="ico">🖍️</span><span class="cap">Stay in lines: on</span></button>
+    <button class="b" id="gMusic"><span class="ico">🎵</span><span class="cap">Drawing music: on</span></button>
     <button class="b" id="gSetup"><span class="ico">🛠️</span><span class="cap">Set up</span></button>
     <button class="b" id="gWipe"><span class="ico">🗑️</span><span class="cap">Erase all</span></button>
     <button class="b" id="gClose"><span class="ico">✅</span><span class="cap">Back to art</span></button>
@@ -396,6 +461,7 @@ button:active,button.press{filter:brightness(.9)}
 <div id="lockPill">🔒 Child mode</div>
 <button id="fsChip"><span>⛶ Tap for full screen</span></button>
 <div id="toast"></div>
+<canvas id="fx"></canvas>
 
 <script>
 "use strict";
@@ -589,7 +655,7 @@ let paperId = 'butterfly';
 let pageSeed = 1;
 let traceText='HELLO';
 const guideCanvas=document.createElement('canvas');
-let guidePixels=null;
+let guidePixels=null,regions=null;
 
 function paperBase(){
   return paperId === 'night' ? '#191b33'
@@ -643,7 +709,7 @@ function drawPaper(){
     vc.lineWidth=220/(s*viewScale);vc.traceWidth=150/(s*viewScale);
     vc.lineJoin='round';vc.lineCap='round';vc.strokeStyle='#2b3157';PICTURE_ART[paperId](vc);
   }
-  guidePixels=null;
+  guidePixels=null;regions=null;
   if(PICTURE_ART[paperId]){
     const pixels=oc.getImageData(0,0,paper.width,paper.height);
     guidePixels=new Uint8Array(paper.width*paper.height);
@@ -651,6 +717,7 @@ function drawPaper(){
       guidePixels[i]=pixels.data[i*4+3];
     }
   }
+  scheduleRegions();
 }
 // Printed vectors stay on top. Do not punch binary holes in artwork: that
 // removes antialiased edge coverage and produces white pixel halos.
@@ -1377,6 +1444,7 @@ const live=document.getElementById('live'),lctx=live.getContext('2d');
 let liveFrame=0;
 function previewStroke(){
   if(!stroke.active||BRUSHES[tool].kind==='wipe')return;
+  clipScratch();
   lctx.clearRect(0,0,live.width,live.height);
   lctx.drawImage(art,0,0);
   lctx.save();lctx.globalCompositeOperation=blendFor(tool);lctx.globalAlpha=BRUSHES[tool].flow;
@@ -1415,13 +1483,15 @@ function at(e){
 
 hit.addEventListener('pointerdown', e => {
   if (activeId !== null || sheetOpen() || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  // The finger that just chose a picture or a tool should not scribble on it.
+  if (e.pointerType !== 'mouse' && performance.now()-sheetClosedAt < 350) return;
   e.preventDefault();
   activeId = e.pointerId;
   hit.setPointerCapture(e.pointerId);
   const p = at(e);
   const b = BRUSHES[tool];
 
-  if (b.kind === 'tap'){ bucketFill(p.x,p.y,color); chime(300,'sine'); return; }
+  if (b.kind === 'tap'){ if(bucketFill(p.x,p.y,color))filledFx(p); chime(300,'sine'); return; }
 
   history_.push();
   stroke.active = true; stroke.pts = [p]; stroke.carry = 0; stroke.dabbedOnce = false;
@@ -1438,12 +1508,13 @@ hit.addEventListener('pointerdown', e => {
       wetColor='#'+rgb.map((v,i)=>Math.round(v*(1-amount)+under[i]*amount).toString(16).padStart(2,'0')).join('');}
   }
 
+  beginHelpers(p);
   if (b.kind === 'wipe'){ wipe(p,p); return; }
   scratch.style.opacity = b.flow;
   scratch.style.mixBlendMode = blendFor(tool) === 'source-over' ? 'normal' : blendFor(tool);
   if (b.kind === 'path') repaintPath(sctx);
   else segment(sctx, tool, color, p, p, stroke.size, true);
-  if (tool === 'stamp') chime(760,'triangle');
+  if (tool === 'stamp'){ chime(760,'triangle'); const q=toScreen(p); burst(q.x,q.y,PARTY,8,.6); }
   stroke.lastFlat = performance.now();
   stroke.flatAt = {x:p.x, y:p.y};
   clearInterval(wetTimer);
@@ -1462,6 +1533,7 @@ hit.addEventListener('pointermove', e => {
     if (tool === 'pencil' || tool === 'marker'){p.x=prev.x*.22+p.x*.78;p.y=prev.y*.22+p.y*.78;}
     p.pressure = prev.pressure*.65 + p.pressure*.35;
     if (Math.hypot(p.x-prev.x, p.y-prev.y) < .8 && b.kind !== 'wipe') continue;
+    if (b.kind !== 'wipe') strokeHelpers(p, Math.hypot(p.x-prev.x, p.y-prev.y));
     feedDynamics(p, prev, ev.timeStamp || performance.now());
     p.tilt = ev.tiltX || 0;
     if (b.kind === 'path'){
@@ -1490,7 +1562,8 @@ function finish(e){
   cancelAnimationFrame(liveFrame);live.style.display='none';art.style.visibility='visible';
   if (stroke.active){
     const b = BRUSHES[tool];
-    if (b.kind !== 'wipe') flattenScratch(b.flow, blendFor(tool));
+    if (b.kind !== 'wipe'){ clipScratch(); flattenScratch(b.flow, blendFor(tool)); }
+    endHelpers();
     scratch.style.opacity = 1;
     scratch.style.mixBlendMode = 'normal';
     stroke.active = false; stroke.pts = [];
@@ -1593,6 +1666,7 @@ function bucketFill(cx, cy, hex){
   patch.getContext('2d').putImageData(out,0,0);
   actx.save(); actx.setTransform(1,0,0,1,0,0); actx.drawImage(patch,0,0); actx.restore();
   scheduleSave();
+  return true;
 }
 
 /* ==================================================================
@@ -1682,7 +1756,7 @@ function load(){
    9. Sound
 =================================================================== */
 let audio = null, soundOn = true;
-function chime(freq,type){
+function chime(freq,type,volume=.07,length=.17){
   if (!soundOn) return;
   try{
     if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
@@ -1690,10 +1764,10 @@ function chime(freq,type){
     const o = audio.createOscillator(), g = audio.createGain();
     o.type = type || 'sine'; o.frequency.value = freq;
     g.gain.setValueAtTime(.0001, audio.currentTime);
-    g.gain.exponentialRampToValueAtTime(.07, audio.currentTime + .012);
-    g.gain.exponentialRampToValueAtTime(.0001, audio.currentTime + .17);
+    g.gain.exponentialRampToValueAtTime(volume, audio.currentTime + .012);
+    g.gain.exponentialRampToValueAtTime(.0001, audio.currentTime + length);
     o.connect(g); g.connect(audio.destination);
-    o.start(); o.stop(audio.currentTime + .19);
+    o.start(); o.stop(audio.currentTime + length + .02);
   }catch(err){}
 }
 
@@ -1702,42 +1776,57 @@ function chime(freq,type){
    Large targets use completed taps so scrolling never selects paper or
    clears artwork. Extra fingers cannot switch tools during a stroke.
 =================================================================== */
-let completedTap=null;
-for(const id of ['actions','rail','bottom','side']){
+let completedTap=null,lastPointerType='mouse',sheetOpenedAt=-1e9,sheetClosedAt=-1e9;
+// A newly opened window ignores touch for a moment, so the leftover of the tap
+// that opened it (or an eager second tap) cannot pick a page or close it again.
+const SETTLE_MS=500,REPEAT_MS=600;
+document.addEventListener('pointerdown',e=>{lastPointerType=e.pointerType;},true);
+let settleSheet=null;
+function settling(){return lastPointerType!=='mouse' && performance.now()-sheetOpenedAt<SETTLE_MS && !!settleSheet && settleSheet.classList.contains('open');}
+for(const id of ['actions','rail','bottom','side','paperCard','phoneDock']){
   const panel=document.getElementById(id);
   let tap=null;
   panel.addEventListener('pointerdown',e=>{
+    if(e.pointerType==='mouse'||e.target.closest('input'))return;
     let button=e.target.closest('button');
     if(!button){
-      let nearest=12;
+      // Shaky hands miss: a tap in a gap goes to the nearest button.
+      let nearest=26;
       for(const candidate of panel.querySelectorAll('button:not(:disabled):not([hidden])')){
         const r=candidate.getBoundingClientRect();
-        if(!r.width||!r.height)continue;
+        if(!r.width||!r.height||!candidate.offsetParent)continue;
         const distance=Math.hypot(Math.max(r.left-e.clientX,0,e.clientX-r.right),Math.max(r.top-e.clientY,0,e.clientY-r.bottom));
         if(distance<nearest){nearest=distance;button=candidate;}
       }
     }
-    if(e.pointerType==='mouse'||!button||button.disabled||activeId!==null||tap)return;
+    if(!button||button.disabled||activeId!==null||tap)return;
+    e.preventDefault();
+    if(panel.closest('.sheet') && settling())return;
     tap={button,id:e.pointerId,x:e.clientX,y:e.clientY};
-    button.setPointerCapture(e.pointerId);
+    try{button.setPointerCapture(e.pointerId);}catch(err){}
     button.classList.add('press');
   });
   panel.addEventListener('pointerup',e=>{
     if(!tap||tap.id!==e.pointerId)return;
     const t=tap;tap=null;t.button.classList.remove('press');
-    completedTap={panel,time:performance.now()};
-    if(Math.hypot(e.clientX-t.x,e.clientY-t.y)<=28 && activeId===null){
-      e.preventDefault();t.button.click();
+    const now=performance.now();
+    completedTap={panel,time:now};
+    // Slips while pressing still count; repeated mashing of one button does not.
+    if(Math.hypot(e.clientX-t.x,e.clientY-t.y)<=90 && activeId===null && now-(t.button._tapped||-1e9)>(t.button.dataset.cooldown||REPEAT_MS)){
+      t.button._tapped=now;e.preventDefault();t.button.click();
     }
   });
   const cancel=()=>{if(tap)tap.button.classList.remove('press');tap=null;};
   panel.addEventListener('pointercancel',cancel);
   panel.addEventListener('lostpointercapture',cancel);
 }
+// Touch taps above were already handled on pointerup. The browser still sends
+// a click afterwards, to whatever is now under the finger (often a window that
+// just opened). Swallow it, and any touch click on a window that just opened.
 document.addEventListener('click',e=>{
-  if(e.isTrusted && e.detail!==0 && completedTap && performance.now()-completedTap.time<600 && completedTap.panel.contains(e.target)){
-    e.preventDefault();e.stopImmediatePropagation();
-  }
+  if(!e.isTrusted || e.detail===0)return;
+  const ghost=completedTap && lastPointerType!=='mouse' && performance.now()-completedTap.time<450;
+  if(ghost || (settling() && settleSheet.contains(e.target))){e.preventDefault();e.stopImmediatePropagation();}
 },true);
 function forgiving(container, sel, pick){
   container.addEventListener('click',e=>{
@@ -1848,12 +1937,14 @@ function drawAllSamples(){ for (const k in toolBtn) drawSample(k); }
 function setTool(key){
   if (!BRUSHES[key]) return;
   if((tool==='stamp')!==(key==='stamp'))palettePage=0;
+  const changed=tool!==key;
   tool = key;
   for (const k in toolBtn){toolBtn[k].classList.toggle('on', k === key);toolBtn[k].setAttribute('aria-pressed',k===key);}
   document.getElementById('stTool').textContent = key === 'stamp' ? stampChar : BRUSHES[key].ico;
   document.getElementById('stName').textContent = BRUSHES[key].name;
   buildBottom();
   updateToolPage(true);
+  if(changed){pop(toolBtn[key]);pop(document.getElementById('phoneTools'));}
   chime(320 + TOOL_ORDER.indexOf(key)*38, 'triangle');
 }
 
@@ -1915,11 +2006,12 @@ function setColor(col){
   else buildBottom();
   drawAllSamples();
   document.getElementById('stDot').style.background = col;
+  pop(bottom.querySelector('.sw.on'));pop(document.getElementById('phoneColors'));
   chime(500,'sine');
 }
 function setStamp(s){
   stampChar = s;
-  buildBottom(); drawSample('stamp');
+  buildBottom(); drawSample('stamp');pop(bottom.querySelector('.st.on'));
   document.getElementById('stTool').textContent = s;
   chime(700,'triangle');
 }
@@ -1959,45 +2051,63 @@ forgiving(actions, '.act', el => {
 });
 
 /* --- paper sheet --- */
-function paperButton(p){
+const TILE_COLORS=['#ffe3e8','#dff0ff','#fff1c9','#e3f7e8','#efe5ff','#ffe8d6','#d9f6f6','#fde2f3'];
+function paperButton(p,index){
   const el = document.createElement('button');
   el.className = 'b' + (p.id === paperId ? ' on' : '');
+  el.style.setProperty('--tile',TILE_COLORS[index%TILE_COLORS.length]);
+  if(p.surprise){
+    el.id='surprise';el.setAttribute('aria-label','Make a surprise page');
+    el.innerHTML='<span class="ico">🎲</span><span class="cap">Surprise!</span>';
+    return el;
+  }
   el.dataset.paper = p.id;
   el.setAttribute('aria-label',p.name);
   if(PICTURE_ART[p.id]){
+    // Bold preview lines read clearly at arm's length on a small screen.
     const preview=document.createElement('canvas');preview.width=384;preview.height=288;preview.className='preview';
-    const c=preview.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,384,288);c.translate(72,24);c.scale(2.4,2.4);c.lineWidth=.55;c.traceWidth=.45;c.strokeStyle='#2b3157';c.lineJoin='round';c.lineCap='round';PICTURE_ART[p.id](c);el.appendChild(preview);
-  }else{const icon=document.createElement('span');icon.className='ico';icon.textContent=p.ico;el.appendChild(icon);}
+    const c=preview.getContext('2d');c.translate(72,24);c.scale(2.4,2.4);c.lineWidth=1.25;c.traceWidth=.95;c.strokeStyle='#2b3157';c.lineJoin='round';c.lineCap='round';PICTURE_ART[p.id](c);el.appendChild(preview);
+  }else{
+    const icon=document.createElement('span');icon.className='ico';icon.textContent=p.ico;
+    icon.style.background=p.id==='night'?'#191b33':p.id==='cream'?'#fdf6e3':p.id==='sky'?'#eaf4ff':'#fff';if(p.id==='night')icon.style.color='#fff';el.appendChild(icon);
+  }
   const cap=document.createElement('span');cap.className='cap';cap.textContent=p.name;el.appendChild(cap);
   return el;
 }
 const plainGrid = document.getElementById('plainGrid');
 const pictureGrid = document.getElementById('pictureGrid');
 let paperCategory='picture',paperPage=0;
+function paperGridSize(){
+  const W=viewW(),H=viewH(),narrow=W<=600||H<=500,short=H<=500;
+  const cardW=Math.min(1000,W-24),cardH=H-24;
+  const gridW=cardW-(narrow&&!short?20:28)-(narrow&&!short?0:2*(short?64:72)+24);
+  const gridH=cardH-(narrow?20:28)-(short?48:narrow?58:68)-(short?48:narrow?56:62)-(narrow&&!short?58+24:24);
+  return {cols:Math.max(2,Math.min(4,Math.round(gridW/240))),rows:Math.max(1,Math.min(3,Math.round(gridH/240)))};
+}
 function buildPaperSheet(){
-  const groups={plain:PLAIN,picture:PICTURES,pattern:PATTERNS,trace:TRACING};
-  const cols=Math.max(2,Math.min(5,Math.floor(Math.min(872,viewW()-56)/130)));
-  const rows=Math.max(1,Math.min(3,Math.floor((viewH()-230)/130)));
+  const groups={plain:PLAIN,picture:[{surprise:true},...PICTURES],pattern:PATTERNS,trace:TRACING};
+  const {cols,rows}=paperGridSize();
   const capacity=cols*rows;
   const list=groups[paperCategory]||[];
-  const pages=Math.max(1,Math.ceil(list.length/capacity));paperPage=Math.min(paperPage,pages-1);
+  const pages=Math.max(1,Math.ceil(list.length/capacity));paperPage=Math.max(0,Math.min(paperPage,pages-1));
   document.getElementById('paperCard').style.setProperty('--paper-cols',cols);
   for(const [category,items] of Object.entries(groups)){
     const grid=document.getElementById(category==='plain'?'plainGrid':category==='picture'?'pictureGrid':category==='pattern'?'patternGrid':'traceGrid');
     grid.hidden=category!==paperCategory;grid.innerHTML='';
-    if(!grid.hidden)items.slice(paperPage*capacity,(paperPage+1)*capacity).forEach(p=>grid.appendChild(paperButton(p)));
+    grid.style.gridTemplateRows=`repeat(${rows},minmax(0,1fr))`;
+    if(!grid.hidden)items.slice(paperPage*capacity,(paperPage+1)*capacity).forEach((p,i)=>grid.appendChild(paperButton(p,paperPage*capacity+i)));
   }
   document.querySelectorAll('#paperTabs button').forEach(b=>b.classList.toggle('on',b.dataset.category===paperCategory));
   document.getElementById('wordForm').hidden=paperCategory!=='words';
-  document.getElementById('surprise').hidden=paperCategory!=='picture';
-  document.getElementById('paperPager').hidden=paperCategory==='words';
-  document.getElementById('paperPageNumber').textContent=(paperPage+1)+' / '+pages;
-  document.getElementById('paperPrev').disabled=paperPage===0;
-  document.getElementById('paperNext').disabled=paperPage===pages-1;
+  const words=paperCategory==='words',pager=document.getElementById('paperPager');
+  pager.innerHTML=words?'':Array.from({length:pages},(_,i)=>`<i class="${i===paperPage?'on':''}"></i>`).join('');
+  pager.setAttribute('aria-label',`Page ${paperPage+1} of ${pages}`);
+  document.getElementById('paperPrev').disabled=words||paperPage===0;
+  document.getElementById('paperNext').disabled=words||paperPage===pages-1;
 }
-document.querySelectorAll('#paperTabs button').forEach(b=>b.addEventListener('click',()=>{paperCategory=b.dataset.category;paperPage=0;buildPaperSheet();}));
-document.getElementById('paperPrev').addEventListener('click',()=>{paperPage--;buildPaperSheet();});
-document.getElementById('paperNext').addEventListener('click',()=>{paperPage++;buildPaperSheet();});
+document.querySelectorAll('#paperTabs button').forEach(b=>b.addEventListener('click',()=>{if(paperCategory===b.dataset.category)return;paperCategory=b.dataset.category;paperPage=0;buildPaperSheet();chime(640,'triangle');}));
+document.getElementById('paperPrev').addEventListener('click',()=>{paperPage--;buildPaperSheet();chime(560,'triangle');});
+document.getElementById('paperNext').addEventListener('click',()=>{paperPage++;buildPaperSheet();chime(700,'triangle');});
 buildPaperSheet();
 const choosePaper = el => {
   finish();history_.push();
@@ -2008,19 +2118,20 @@ const choosePaper = el => {
   drawPaper();
   document.body.style.background = paperId === 'night' ? '#0d0f24' : '#14163a';
   buildPaperSheet(); closeSheets(); chime(520,'sine'); scheduleSave();
+  newPageFx();
 };
-forgiving(plainGrid, '.b', choosePaper);
-forgiving(pictureGrid, '.b', choosePaper);
-forgiving(document.getElementById('traceGrid'), '.b', choosePaper);
-forgiving(document.getElementById('patternGrid'), '.b', choosePaper);
-document.getElementById('wordForm').addEventListener('submit',e=>{
-  e.preventDefault();const word=document.getElementById('traceWords').value.trim();if(!word)return;
-  choosePaper({dataset:{paper:'trace-name'}});traceText=word.slice(0,16);drawPaper();buildPaperSheet();scheduleSave();
-});
-document.getElementById('surprise').addEventListener('click',()=>{
+function makeSurprise(){
   // History captures the old seed before generating the new template.
   choosePaper({dataset:{paper:'surprise'}});
   pageSeed=(Math.random()*4294967295)>>>0;drawPaper();buildPaperSheet();scheduleSave();
+}
+forgiving(plainGrid, '[data-paper]', choosePaper);
+forgiving(pictureGrid, '[data-paper],#surprise', el=>el.id==='surprise'?makeSurprise():choosePaper(el));
+forgiving(document.getElementById('traceGrid'), '[data-paper]', choosePaper);
+forgiving(document.getElementById('patternGrid'), '[data-paper]', choosePaper);
+document.getElementById('wordForm').addEventListener('submit',e=>{
+  e.preventDefault();const word=document.getElementById('traceWords').value.trim();if(!word)return;
+  choosePaper({dataset:{paper:'trace-name'}});traceText=word.slice(0,16);drawPaper();buildPaperSheet();scheduleSave();
 });
 document.querySelectorAll('.closeSheet').forEach(b=>b.addEventListener('click',closeSheets));
 document.getElementById('gRedo').addEventListener('click',()=>{history_.redo();closeSheets();});
@@ -2040,7 +2151,8 @@ function updatePhoneDock(){
 }
 function openPhoneChoices(choice){
   if(activeId!==null)return;
-  if(document.getElementById('phoneTray').classList.contains('open') && phoneChoice===choice){closeSheets();return;}
+  // Repeated taps keep the tray open; it closes when something is chosen or with ✕.
+  if(document.getElementById('phoneTray').classList.contains('open') && phoneChoice===choice)return;
   phoneChoice=choice;
   rail.hidden=choice!=='tools';bottom.hidden=choice!=='colors';
   document.getElementById('phoneTrayTitle').textContent=choice==='tools'?'Choose a tool':tool==='stamp'?'Choose a stamp':'Choose a color';
@@ -2049,11 +2161,17 @@ function openPhoneChoices(choice){
 document.getElementById('phoneTools').addEventListener('click',()=>openPhoneChoices('tools'));
 document.getElementById('phoneColors').addEventListener('click',()=>openPhoneChoices('colors'));
 /* --- sheets --- */
-function openSheet(id){ finish();closeSheets(); document.getElementById(id).classList.add('open');if(id==='paperSheet')buildPaperSheet(); }
-function closeSheets(){ document.querySelectorAll('.sheet').forEach(s => s.classList.remove('open'));updatePhoneDock(); }
+function openSheet(id){ finish();closeSheets(); document.getElementById(id).classList.add('open');
+  // Only the child's windows settle; grown-up windows respond at once.
+  sheetOpenedAt=performance.now();settleSheet=['paperSheet','phoneTray'].includes(id)?document.getElementById(id):null;if(id==='paperSheet')buildPaperSheet(); }
+function closeSheets(){
+  if(sheetOpen())sheetClosedAt=performance.now();
+  document.querySelectorAll('.sheet').forEach(s => s.classList.remove('open'));updatePhoneDock();
+}
 function sheetOpen(){ return !!document.querySelector('.sheet.open'); }
 document.querySelectorAll('.sheet').forEach(s => {
-  s.addEventListener('pointerdown', e => { if (e.target === s){e.preventDefault();closeSheets();} });
+  // Tapping beside the page picker does nothing: little hands tap everywhere.
+  s.addEventListener('pointerdown', e => { if (e.target === s && s.id!=='paperSheet' && !settling()){e.preventDefault();closeSheets();} });
 });
 
 /* --- grown-up badge, hold to open --- */
@@ -2315,6 +2433,181 @@ window.addEventListener('keydown', e => {
     setTool(TOOL_ORDER[(i + (e.key === ']' ? 1 : TOOL_ORDER.length-1)) % TOOL_ORDER.length]);
   }
 });
+
+/* ==================================================================
+   12. Delight and gentle coaching
+   Sparkles and stars reward effort. Tracing pages cheer while the line is
+   followed. On coloring pages a stroke that starts inside a shape stays in
+   that shape, so wobbly hands still make a tidy picture. All optional.
+=================================================================== */
+const settings={helper:true,music:true,stars:0};
+try{Object.assign(settings,JSON.parse(localStorage.getItem('artstudio-settings')||'{}'));}catch(err){}
+function saveSettings(){try{localStorage.setItem('artstudio-settings',JSON.stringify(settings));}catch(err){}}
+function pop(el){if(!el)return;el.classList.remove('pop');void el.offsetWidth;el.classList.add('pop');}
+
+const fx=document.getElementById('fx'),fxc=fx.getContext('2d');
+const PARTY=['#ffca28','#ff7043','#ec407a','#ab47bc','#42a5f5','#66bb6a'];
+let sparks=[],fxFrame=0,fillCount=0;
+function toScreen(p){const r=hit.getBoundingClientRect();return {x:r.left+viewLeft+p.x*viewScale,y:r.top+viewTop+p.y*viewScale};}
+function burst(x,y,colors,n,power){
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  n=n||18;power=power||1;
+  for(let i=0;i<n;i++){
+    const a=Math.random()*TAU,v=(1.5+Math.random()*4.5)*power;
+    sparks.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v-1.5*power,life:1,decay:.016+Math.random()*.018,
+      size:(5+Math.random()*9)*Math.sqrt(power),color:colors[i%colors.length],star:i%2===0,spin:Math.random()*TAU});
+  }
+  if(sparks.length>400)sparks=sparks.slice(-400);
+  if(!fxFrame)fxFrame=requestAnimationFrame(animateFx);
+}
+function animateFx(){
+  const ratio=Math.min(2,window.devicePixelRatio||1),W=window.innerWidth,H=window.innerHeight;
+  if(fx.width!==Math.round(W*ratio)||fx.height!==Math.round(H*ratio)){fx.width=Math.round(W*ratio);fx.height=Math.round(H*ratio);}
+  fxc.setTransform(ratio,0,0,ratio,0,0);fxc.clearRect(0,0,W,H);
+  sparks=sparks.filter(s=>(s.life-=s.decay)>0);
+  for(const s of sparks){
+    s.x+=s.vx;s.y+=s.vy;s.vy+=.16;s.vx*=.98;s.spin+=.12;
+    fxc.globalAlpha=Math.min(1,s.life*1.6);fxc.fillStyle=s.color;
+    fxc.save();fxc.translate(s.x,s.y);fxc.rotate(s.spin);fxc.beginPath();
+    if(s.star)for(let i=0;i<10;i++){const r=i%2?s.size*.42:s.size,a=i*Math.PI/5;fxc.lineTo(Math.cos(a)*r,Math.sin(a)*r);}
+    else fxc.arc(0,0,s.size*.45,0,TAU);
+    fxc.fill();fxc.restore();
+  }
+  fxc.globalAlpha=1;
+  fxFrame=sparks.length?requestAnimationFrame(animateFx):0;
+}
+function melody(notes){notes.forEach((f,i)=>setTimeout(()=>chime(f,'triangle',.06,.3),i*120));}
+function newPageFx(){
+  fillCount=0;
+  const o=document.getElementById('outlines');o.classList.remove('pageIn');void o.offsetWidth;o.classList.add('pageIn');
+  const r=hit.getBoundingClientRect();burst(r.left+r.width/2,r.top+r.height*.35,PARTY,24,1.1);
+  melody([523,659,784]);
+}
+
+/* --- stars --- */
+function updateStars(){
+  document.getElementById('starCount').textContent=settings.stars;
+  document.getElementById('stars').classList.toggle('has',settings.stars>0);
+}
+function earnStar(message,at){
+  settings.stars++;saveSettings();updateStars();pop(document.getElementById('stars'));
+  burst(at.x,at.y,['#ffd54f','#ffb300','#fff176','#ff8a65'],34,1.5);
+  melody([659,784,988,1319]);toast('⭐ '+message);
+}
+function filledFx(p){
+  const q=toScreen(p);burst(q.x,q.y,[color,color,'#ffffff','#ffd54f'],16,.9);
+  if(PICTURE_ART[paperId] && ++fillCount===6)setTimeout(()=>earnStar('Beautiful colors!',q),250);
+}
+
+/* --- drawing music: higher on the page sounds higher --- */
+const SCALE=[262,294,330,392,440,523,587,659,784,880,1047];
+let musicDist=0,lastNote=0;
+function drawingMusic(p,d){
+  if(!settings.music||!soundOn)return;
+  musicDist+=d*viewScale;
+  const now=performance.now();
+  if(musicDist<60||now-lastNote<150)return;
+  musicDist=0;lastNote=now;
+  const step=clamp(Math.floor((1-(toScreen(p).y/viewH()))*SCALE.length),0,SCALE.length-1);
+  chime(SCALE[step],'sine',.028,.28);
+}
+
+/* --- tracing coach --- */
+function nearGuide(p){
+  if(!guidePixels)return false;
+  const W=paper.width,H=paper.height,cx=Math.round(p.x*dpr),cy=Math.round(p.y*dpr);
+  const R=Math.round(24/viewScale*dpr),stride=Math.max(1,Math.floor(R/14));
+  for(let dy=-R;dy<=R;dy+=stride){
+    const y=cy+dy;if(y<0||y>=H)continue;const row=y*W;
+    for(let dx=-R;dx<=R;dx+=stride){const x=cx+dx;if(x>=0&&x<W&&guidePixels[row+x]>40)return true;}
+  }
+  return false;
+}
+
+/* --- stay in the lines: label the enclosed shapes of the printed page --- */
+const REGION_K=2;
+function helperPage(){return !!PICTURE_ART[paperId] && !paperId.startsWith('trace-');}
+function regionMap(){
+  if(regions && regions.guide===guidePixels)return regions;
+  const k=REGION_K,PW=paper.width,PH=paper.height,W=Math.ceil(PW/k),H=Math.ceil(PH/k),n=W*H;
+  const blocked=new Uint8Array(n);
+  for(let y=0;y<PH;y++){const row=y*PW,cell=((y/k)|0)*W;for(let x=0;x<PW;x++)if(guidePixels[row+x]>16)blocked[cell+((x/k)|0)]=1;}
+  const labels=new Int32Array(n),stack=new Int32Array(n),info=[null];
+  for(let start=0;start<n;start++){
+    if(labels[start]||blocked[start])continue;
+    const id=info.length;let top=0,edge=false;labels[start]=id;stack[top++]=start;
+    while(top){
+      const i=stack[--top],x=i%W,y=(i/W)|0;
+      if(x===0||y===0||x===W-1||y===H-1)edge=true;
+      if(x>0&&!labels[i-1]&&!blocked[i-1]){labels[i-1]=id;stack[top++]=i-1;}
+      if(x<W-1&&!labels[i+1]&&!blocked[i+1]){labels[i+1]=id;stack[top++]=i+1;}
+      if(y>0&&!labels[i-W]&&!blocked[i-W]){labels[i-W]=id;stack[top++]=i-W;}
+      if(y<H-1&&!labels[i+W]&&!blocked[i+W]){labels[i+W]=id;stack[top++]=i+W;}
+    }
+    info.push({edge});
+  }
+  return regions={guide:guidePixels,labels,info,W,H,k,masks:new Map()};
+}
+function regionMask(id){
+  const R=regionMap();
+  if(R.masks.has(id))return R.masks.get(id);
+  const c=document.createElement('canvas');c.width=R.W;c.height=R.H;
+  const cc=c.getContext('2d'),img=cc.createImageData(R.W,R.H),d=img.data,L=R.labels,W=R.W;
+  for(let i=0;i<L.length;i++){
+    // Include outline cells next to the shape so paint tucks under the line.
+    if(L[i]===id||(!L[i]&&(L[i-1]===id||L[i+1]===id||L[i-W]===id||L[i+W]===id)))d[i*4+3]=255;
+  }
+  cc.putImageData(img,0,0);
+  if(R.masks.size>=4)R.masks.delete(R.masks.keys().next().value);
+  R.masks.set(id,c);
+  return c;
+}
+function clipScratch(){
+  if(!stroke.clip)return;
+  sctx.save();sctx.setTransform(1,0,0,1,0,0);sctx.globalCompositeOperation='destination-in';
+  sctx.drawImage(stroke.clip,0,0,stroke.clip.width*REGION_K,stroke.clip.height*REGION_K);sctx.restore();
+}
+function beginHelpers(p){
+  stroke.clip=null;musicDist=0;
+  stroke.coach=paperId.startsWith('trace-') && tool!=='eraser' && tool!=='stamp';
+  stroke.traceOn=0;stroke.traceAll=0;stroke.sparkDist=0;stroke.noteIndex=0;
+  if(!settings.helper||symmetry!==1||!helperPage()||!guidePixels||['stamp','eraser','fill'].includes(tool))return;
+  const R=regionMap(),x=Math.floor(p.x*dpr/R.k),y=Math.floor(p.y*dpr/R.k);
+  if(x<0||y<0||x>=R.W||y>=R.H)return;
+  const id=R.labels[y*R.W+x];
+  if(id && !R.info[id].edge)stroke.clip=regionMask(id);
+}
+function strokeHelpers(p,d){
+  if(!stroke.coach){drawingMusic(p,d);return;}
+  stroke.traceAll+=d;
+  if(!nearGuide(p))return;
+  stroke.traceOn+=d;stroke.sparkDist+=d*viewScale;stroke.last=p;
+  if(stroke.sparkDist>55){
+    stroke.sparkDist=0;const q=toScreen(p);burst(q.x,q.y,[color,'#ffd54f','#ffffff'],4,.45);
+    if(settings.music&&soundOn)chime(SCALE[stroke.noteIndex++%SCALE.length],'sine',.035,.25);
+  }
+}
+function endHelpers(){
+  if(stroke.coach && stroke.traceAll*viewScale>220 && stroke.traceOn/stroke.traceAll>.7 && stroke.last)
+    earnStar('Great tracing!',toScreen(stroke.last));
+  stroke.coach=false;stroke.clip=null;
+}
+
+// Label shapes while the child looks at the new page, not on the first stroke.
+let regionTimer=0;
+function scheduleRegions(){
+  clearTimeout(regionTimer);
+  if(helperPage()&&settings.helper)regionTimer=setTimeout(()=>{if(guidePixels&&helperPage()&&!stroke.active)regionMap();},200);
+}
+
+function helperUI(){
+  document.querySelector('#gHelper .cap').textContent='Stay in lines: '+(settings.helper?'on':'off');
+  document.querySelector('#gMusic .cap').textContent='Drawing music: '+(settings.music?'on':'off');
+}
+document.getElementById('gHelper').addEventListener('click',()=>{settings.helper=!settings.helper;saveSettings();helperUI();
+  toast(settings.helper?'Strokes stay inside the shape they start in':'Strokes can cross the lines');});
+document.getElementById('gMusic').addEventListener('click',()=>{settings.music=!settings.music;saveSettings();helperUI();});
+helperUI();updateStars();
 
 let resizeTimer = null;
 function relayout(delay){
