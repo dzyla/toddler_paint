@@ -133,5 +133,55 @@ with sync_playwright() as p:
       const r=p.getBoundingClientRect();return [r.left-12,(r.top+r.bottom)/2];}""")
     assert page.evaluate('([x,y])=>resolveTapTarget(document.getElementById("actions"),x,y)?.id==="btnPaper"',near)
     assert not errors,errors
+
+    # --- Task 3: a resting finger must not kill the interface ---
+    page=browser.new_page(viewport={'width':1024,'height':768},has_touch=True)
+    errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+    page.goto(URL);page.click('#setupDone');page.wait_for_timeout(300)
+    page.evaluate('soundOn=false')
+    page.evaluate("choosePaper({dataset:{paper:'white'}});setTool('crayon')")
+    page.wait_for_timeout(250)
+
+    hit=page.locator('#hit').bounding_box()
+    hx,hy=hit['x']+hit['width']/2,hit['y']+hit['height']/2
+    def finger(type_,pid,x,y):
+        page.evaluate("""([type,pid,x,y])=>{
+          const h=document.getElementById('hit');
+          h.setPointerCapture=()=>{};
+          h.dispatchEvent(new PointerEvent(type,{bubbles:true,pointerId:pid,pointerType:'touch',
+            isPrimary:true,clientX:x,clientY:y,pressure:.5}));
+        }""",[type_,pid,x,y])
+
+    # A finger parked on the paper: the tool still changes.
+    finger('pointerdown',31,hx,hy)
+    page.wait_for_timeout(500)
+    assert page.evaluate('activeId')==31,page.evaluate('activeId')
+    assert page.evaluate('drawingNow()')==False
+    page.locator('[data-tool="pencil"]').tap();page.wait_for_timeout(150)
+    assert page.evaluate('tool')=='pencil',page.evaluate('tool')
+    finger('pointerup',31,hx,hy)
+
+    # A stroke that is actively moving still blocks a tool change.
+    finger('pointerdown',32,hx,hy)
+    for i in range(6):
+        finger('pointermove',32,hx+i*9,hy+i*7);page.wait_for_timeout(16)
+    assert page.evaluate('drawingNow()')==True
+    page.locator('[data-tool="marker"]').tap();page.wait_for_timeout(60)
+    assert page.evaluate('tool')=='pencil',page.evaluate('tool')
+    finger('pointerup',32,hx+60,hy+50)
+    page.wait_for_timeout(100)
+
+    # A lost pointerup must not lock the paper forever.
+    finger('pointerdown',33,hx,hy)
+    page.wait_for_timeout(150)
+    page.evaluate('()=>{stroke.lastMoveAt=performance.now()-9999}')
+    assert page.evaluate('strokeIdleFor()')>2500
+    before=page.evaluate('artRevision')
+    finger('pointerdown',34,hx+40,hy+40)
+    page.wait_for_timeout(100)
+    assert page.evaluate('activeId')==34,page.evaluate('activeId')
+    assert page.evaluate('artRevision')>before,(page.evaluate('artRevision'),before)
+    finger('pointerup',34,hx+40,hy+40)
+    assert not errors,errors
     browser.close()
     print('PASS: instant taps, cards honoured at once, no post-pick scribbles, Next advances per tap, strokes stay in shapes, tracing earns stars, tap engine fires once per gesture, two-finger taps, ambiguous gaps refused')

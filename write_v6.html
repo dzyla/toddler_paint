@@ -1482,11 +1482,14 @@ function at(e){
 }
 
 hit.addEventListener('pointerdown', e => {
-  if (activeId !== null || sheetOpen() || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  if (sheetOpen() || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  // A lost pointerup would otherwise lock the paper for good.
+  if (activeId !== null){ if (strokeIdleFor() > STROKE_STALE_MS) finish(); else return; }
   // The finger that just chose a picture or a tool should not scribble on it.
-  if (e.pointerType !== 'mouse' && performance.now()-sheetClosedAt < 350) return;
+  if (e.pointerType !== 'mouse' && performance.now()-sheetClosedAt < 150) return;
   e.preventDefault();
   activeId = e.pointerId;
+  stroke.lastMoveAt = performance.now();
   hit.setPointerCapture(e.pointerId);
   const p = at(e);
   const b = BRUSHES[tool];
@@ -1529,6 +1532,7 @@ hit.addEventListener('pointermove', e => {
   const batch = (raw && raw.length) ? raw : [e];
   for (const ev of batch){
     const p = at(ev);
+    stroke.lastMoveAt = performance.now();
     // A little stabilization removes hand jitter without a long trailing stroke.
     if (tool === 'pencil' || tool === 'marker'){p.x=prev.x*.22+p.x*.78;p.y=prev.y*.22+p.y*.78;}
     p.pressure = prev.pressure*.65 + p.pressure*.35;
@@ -1771,8 +1775,16 @@ function chime(freq,type,volume=.07,length=.17){
   }catch(err){}
 }
 
-// Replaced in Task 3 by a movement-aware predicate.
-function drawingNow(){return activeId!==null;}
+/* A finger parked on the paper is not drawing. The old code could not tell
+   the difference, so a toddler steadying a tablet with one hand silenced
+   every control. Movement within the last STROKE_IDLE_MS is drawing;
+   anything stiller than that yields to a deliberate tap. */
+const STROKE_IDLE_MS=400,STROKE_STALE_MS=2500;
+function strokeIdleFor(){
+  if(activeId===null)return Infinity;
+  return performance.now()-(stroke.lastMoveAt||0);
+}
+function drawingNow(){return activeId!==null && strokeIdleFor()<STROKE_IDLE_MS;}
 
 /* ==================================================================
    10. Tap engine
@@ -2242,7 +2254,7 @@ const grownFill = grown.querySelector('.fill');
    which opens the grown-up menu. */
 let holdTimer = null, holdStart = 0, holdFired = false;
 function holdBegin(e){
-  if(holdTimer || activeId!==null)return;
+  if(holdTimer || drawingNow())return;
   e.preventDefault();
   holdStart = Date.now(); holdFired = false;
   holdTimer = setInterval(() => {
@@ -2480,7 +2492,7 @@ function toast(msg, ms){
 }
 window.addEventListener('keydown', e => {
   if(e.target instanceof HTMLInputElement)return;
-  if(activeId!==null || (locked && !sheetOpen())){e.preventDefault();return;}
+  if(drawingNow() || (locked && !sheetOpen())){e.preventDefault();return;}
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z'){
     e.preventDefault(); e.shiftKey ? history_.redo() : history_.undo();
   }
