@@ -489,5 +489,55 @@ with sync_playwright() as p:
     assert page.evaluate("document.getElementById('actions').parentElement.id")=='topRow'
     assert page.locator('#btnNew').is_disabled()==False
     assert not errors,errors
+
+    # --- Colouring is free by default: nothing clips a stroke to a shape ---
+    page=browser.new_page(viewport={'width':1280,'height':900})
+    errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+    page.goto(URL);page.click('#setupDone');page.wait_for_timeout(300)
+    page.evaluate("localStorage.removeItem('artstudio-settings')")
+    page.reload();page.wait_for_timeout(450)
+    try:
+        page.click('#setupDone',timeout=2000)
+    except Exception:
+        pass
+    page.evaluate('soundOn=false')
+    assert page.evaluate('settings.helper')==False,page.evaluate('settings.helper')
+    assert 'off' in page.evaluate("document.querySelector('#gHelper .cap').textContent")
+
+    def fworld(u,v):
+        return page.evaluate('([u,v])=>{const s=Math.min(designWidth,designHeight)*.82;return [vw/2+(u-50)*s/100,vh/2+(v-50)*s/100]}',[u,v])
+    def fscreen(x,y):
+        r=page.locator('#hit').bounding_box();scale,left,top=page.evaluate('[viewScale,viewLeft,viewTop]')
+        return r['x']+left+x*scale,r['y']+top+y*scale
+    def falpha(x,y):return page.evaluate('([x,y])=>actx.getImageData(Math.floor(x*dpr),Math.floor(y*dpr),1,1).data[3]',[x,y])
+
+    # The same butterfly stroke the opt-in check uses, now expected to run free.
+    page.evaluate("setTool('marker');setColor('#1e88e5')");page.wait_for_timeout(400)
+    inside,outside=fworld(31,27),fworld(25,6)
+    page.mouse.move(*fscreen(*inside));page.mouse.down()
+    page.mouse.move(*fscreen(*outside),steps=30);page.mouse.up();page.wait_for_timeout(250)
+    assert falpha(*inside)>0,falpha(*inside)
+    assert falpha(*outside)>0,falpha(*outside)
+
+    # A value stored by an older build must not keep clipping him.
+    page.evaluate("()=>{localStorage.setItem('artstudio-settings',JSON.stringify({helper:true,music:true,stars:0}))}")
+    page.reload();page.wait_for_timeout(450)
+    try:
+        page.click('#setupDone',timeout=2000)
+    except Exception:
+        pass
+    assert page.evaluate('settings.helper')==False,page.evaluate('settings.helper')
+
+    # The grown-up toggle still turns it back on, and that choice sticks.
+    page.evaluate('soundOn=false')
+    page.evaluate("openSheet('grownSheet')");page.click('#gHelper');page.wait_for_timeout(150)
+    assert page.evaluate('settings.helper')==True
+    page.reload();page.wait_for_timeout(450)
+    try:
+        page.click('#setupDone',timeout=2000)
+    except Exception:
+        pass
+    assert page.evaluate('settings.helper')==True,page.evaluate('settings.helper')
+    assert not errors,errors
     browser.close()
     print('PASS: instant taps, cards honoured at once, no post-pick scribbles, Next advances per tap, strokes stay in shapes, tracing earns stars, tap engine fires once per gesture, two-finger taps, ambiguous gaps refused')

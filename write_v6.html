@@ -2675,8 +2675,21 @@ window.addEventListener('keydown', e => {
    followed. On coloring pages a stroke that starts inside a shape stays in
    that shape, so wobbly hands still make a tidy picture. All optional.
 =================================================================== */
-const settings={helper:true,music:true,stars:0};
-try{Object.assign(settings,JSON.parse(localStorage.getItem('artstudio-settings')||'{}'));}catch(err){}
+/* Colouring runs free. Clipping a stroke to the shape it started in made tidy
+   pictures, but it also meant his crayon stopped dead for reasons he has no way
+   to understand -- the same silent refusal this app spent its effort removing.
+   The grown-up menu can still switch it on.
+
+   freeLines marks a store written since that change. Without it the device is
+   carrying the old default, so the saved value is dropped once; a deliberate
+   toggle afterwards is kept. */
+const settings={helper:false,music:true,stars:0,freeLines:1};
+try{
+  const saved=JSON.parse(localStorage.getItem('artstudio-settings')||'{}');
+  if(saved.freeLines!==1)delete saved.helper;
+  Object.assign(settings,saved);
+  settings.freeLines=1;
+}catch(err){}
 function saveSettings(){try{localStorage.setItem('artstudio-settings',JSON.stringify(settings));}catch(err){}}
 function pop(el){if(!el)return;el.classList.remove('pop');void el.offsetWidth;el.classList.add('pop');}
 
