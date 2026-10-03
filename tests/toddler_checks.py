@@ -198,9 +198,20 @@ with sync_playwright() as p:
 
     assert page.evaluate('artIsEmpty()')==True
 
-    # artIsEmpty must be cheap even on the largest canvas, and never throw.
-    cost=page.evaluate('()=>{const t=performance.now();artIsEmpty();return performance.now()-t}')
-    assert cost<150,cost
+    # artIsEmpty runs on the Clean path he is expected to mash, so it must be
+    # cheap on the largest canvas, not merely under a frame: the old full
+    # getImageData allocated ~20MB per tap.
+    cost=max(page.evaluate('()=>{const t=performance.now();artIsEmpty();return performance.now()-t}')
+             for _ in range(5))
+    assert cost<3,cost
+    # Cheap must not mean blind: a single short stroke still counts as ink.
+    hitb=page.locator('#hit').bounding_box()
+    page.mouse.move(hitb['x']+hitb['width']*.5,hitb['y']+hitb['height']*.5)
+    page.mouse.down();page.mouse.move(hitb['x']+hitb['width']*.5+14,hitb['y']+hitb['height']*.5+10)
+    page.mouse.up();page.wait_for_timeout(250)
+    assert page.evaluate('artIsEmpty()')==False
+    page.evaluate('freshPage()');page.wait_for_timeout(200)
+    assert page.evaluate('artIsEmpty()')==True
 
     # Draw something, then mash Clean ten times.
     hit=page.locator('#hit').bounding_box()
@@ -213,11 +224,15 @@ with sync_playwright() as p:
 
     box=page.locator('#btnNew').bounding_box()
     cx,cy=box['x']+box['width']/2,box['y']+box['height']/2
+    # Count pushes rather than compare undo depth: history_.trim() caps depth by
+    # total snapshot bytes, and one snapshot of a full-size canvas is already
+    # ~20MB, so depth saturates at 2 regardless of how many entries were made.
+    page.evaluate("()=>{window.pushes=0;const o=history_.push;history_.push=()=>{pushes++;o.call(history_)}}")
     for _ in range(10):
         page.touchscreen.tap(cx,cy);page.wait_for_timeout(60)
     assert page.evaluate('artIsEmpty()')==True
     # Exactly one history entry for ten taps: the nine no-ops are free.
-    assert page.evaluate('()=>undoDepth()')==depth+1,(page.evaluate('()=>undoDepth()'),depth)
+    assert page.evaluate('pushes')==1,page.evaluate('pushes')
     # And one Undo brings his drawing back.
     page.locator('#btnUndo').tap();page.wait_for_timeout(350)
     assert page.evaluate('artIsEmpty()')==False
@@ -285,11 +300,14 @@ with sync_playwright() as p:
                     (375,667),(600,960),(844,390),(667,375),(568,320)]:
         page.set_viewport_size({'width':vw_,'height':vh_});page.wait_for_timeout(300)
         size=page.evaluate('paperGridSize()')
-        assert size['cols']*size['rows']==6,(vw_,vh_,size)
-        if vh_>vw_ and page.evaluate('phoneLayout()'):
-            assert size=={'cols':2,'rows':3},(vw_,vh_,size)
-        else:
-            assert size=={'cols':3,'rows':2},(vw_,vh_,size)
+        # Six is the ceiling, not a quota. On a cramped screen the rows drop so
+        # each card stays big enough to recognise; squeezing six in made the
+        # previews 40px tall, which defeats the point of the picker.
+        cells=size['cols']*size['rows']
+        assert 2<=cells<=6,(vw_,vh_,size)
+        assert size['cols']==(2 if (vh_>vw_ and page.evaluate('phoneLayout()')) else 3),(vw_,vh_,size)
+        if (vw_,vh_) in [(1366,768),(1024,768),(768,1024),(390,844),(600,960)]:
+            assert cells==6,(vw_,vh_,size)
         page.locator('#btnPaper').tap();page.wait_for_timeout(250)
         cards=page.locator('#pictureGrid .b:visible').count()
         assert 0<cards<=6,(vw_,vh_,cards)
@@ -404,6 +422,72 @@ with sync_playwright() as p:
       setTimeout(()=>{mo.disconnect();resolve(seen)},100);
     })""")
     assert flashed==True
+    assert not errors,errors
+
+    # --- Review fix 1: cards must stay big enough to see on short screens ---
+    # Counting cards and checking PREVIEW_LINE proves nothing the child's eye
+    # can see: the backing canvas is scaled down to fit the cell, so a squeezed
+    # cell renders a 2.6px line at a fraction of a pixel. Measure the rendered
+    # box instead, on the layouts that squeeze hardest.
+    page=browser.new_page(viewport={'width':1024,'height':768},has_touch=True)
+    errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+    page.goto(URL);page.click('#setupDone');page.wait_for_timeout(300)
+    page.evaluate('soundOn=false')
+    for vw_,vh_ in [(568,320),(640,360),(812,375),(360,640),(390,844),(768,1024),(1024,768)]:
+        page.set_viewport_size({'width':vw_,'height':vh_});page.wait_for_timeout(300)
+        page.locator('#btnPaper').tap();page.wait_for_timeout(300)
+        cell=page.locator('#pictureGrid .b').first.bounding_box()
+        prev=page.locator('#pictureGrid .preview').first.bounding_box()
+        assert cell['height']>=110,(vw_,vh_,'cell',cell)
+        assert prev['height']>=80,(vw_,vh_,'preview',prev)
+        assert prev['width']>=80,(vw_,vh_,'preview',prev)
+        # Still no scrolling, and still at most six cards.
+        assert page.evaluate("()=>{const c=document.getElementById('paperCard');"
+                             "return c.scrollHeight<=c.clientHeight+1 && c.scrollWidth<=c.clientWidth+1}"),(vw_,vh_)
+        n=page.locator('#pictureGrid .b:visible').count()
+        assert 0<n<=6,(vw_,vh_,n)
+        # The toggle he presses is still reachable over the open gallery.
+        assert page.evaluate("""()=>{const b=document.getElementById('btnPaper');
+          const r=b.getBoundingClientRect();
+          const hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
+          return hit===b || b.contains(hit);}"""),(vw_,vh_,'toggle covered')
+        page.locator('#btnPaper').tap();page.wait_for_timeout(200)
+    assert not errors,errors
+
+    # --- Review fixes 2 and 3: the lifted cluster must not strand or mis-size ---
+    page=browser.new_page(viewport={'width':1024,'height':768},has_touch=True)
+    errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+    page.goto(URL);page.click('#setupDone');page.wait_for_timeout(300)
+    page.evaluate('soundOn=false')
+    page.evaluate("choosePaper({dataset:{paper:'cat'}})");page.wait_for_timeout(400)
+
+    page.locator('#btnPaper').tap();page.wait_for_timeout(300)
+    # Nothing measured while the cluster is lifted may mis-size the paper: a
+    # relayout with the gallery open must leave the geometry untouched.
+    snap=page.evaluate('[vw,vh,viewTop,viewLeft]')
+    page.evaluate('sizeLayers()');page.wait_for_timeout(250)
+    assert page.evaluate('[vw,vh,viewTop,viewLeft]')==snap,(snap,page.evaluate('[vw,vh,viewTop,viewLeft]'))
+    # The drawing area still starts below the cluster, not below a short top row.
+    assert page.evaluate("""()=>{const o=window.visualViewport?visualViewport.offsetTop:0;
+      return drawingBounds().y >= document.getElementById('actions').getBoundingClientRect().bottom - o - 0.5;}""")
+    # Rotating with the gallery open keeps the toggle on screen and tappable.
+    page.set_viewport_size({'width':768,'height':1024});page.wait_for_timeout(450)
+    box=page.locator('#btnPaper').bounding_box()
+    assert box['x']>=0 and box['x']+box['width']<=768.5,box
+    assert box['y']>=0 and box['y']+box['height']<=1024.5,box
+    assert page.evaluate("""()=>{const b=document.getElementById('btnPaper');
+      const r=b.getBoundingClientRect();
+      const hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
+      return hit===b||b.contains(hit);}"""),box
+    # Undo and Clean are not live over the open gallery: he mashes exactly there,
+    # and neither shows him anything when the gallery is covering the paper.
+    assert page.locator('#btnUndo').is_disabled()
+    assert page.locator('#btnNew').is_disabled()
+    page.locator('#btnPaper').tap();page.wait_for_timeout(300)
+    assert page.locator('#paperSheet').is_hidden()
+    # Closing restores them, and the cluster goes back into the top row.
+    assert page.evaluate("document.getElementById('actions').parentElement.id")=='topRow'
+    assert page.locator('#btnNew').is_disabled()==False
     assert not errors,errors
     browser.close()
     print('PASS: instant taps, cards honoured at once, no post-pick scribbles, Next advances per tap, strokes stay in shapes, tracing earns stars, tap engine fires once per gesture, two-finger taps, ambiguous gaps refused')

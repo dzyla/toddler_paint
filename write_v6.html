@@ -24,7 +24,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;overscroll-b
   background:#14163a;font-family:ui-rounded,"SF Pro Rounded",Nunito,"Segoe UI Variable",Verdana,sans-serif;}
 
 :root{
-  --app-h:100dvh; --app-top:0px;
+  --app-h:100dvh; --app-top:0px; --tabs-h:68px;
   --toolW:90px; --toolH:80px; --swD:58px; --actD:62px;
   --toolIco:23px; --toolCap:11px; --stIco:27px;
 }
@@ -314,16 +314,20 @@ button:active,button.press{filter:brightness(.9)}
    bottom: far from the New page button, so a double tap cannot close it. */
 /* The button he pressed must stay under his finger, so the gallery makes room
    for the action cluster instead of covering it. */
-body.pickingPaper #topRow{z-index:60}
 body.pickingPaper #actions{pointer-events:auto}
 #btnPaper.sheetOpen{box-shadow:0 0 0 5px var(--ink),0 6px 16px rgba(10,15,45,.3)}
-#paperSheet{padding:12px;padding-top:calc(16px + var(--cluster-h,96px));background:#1d1f4acc}
-#paperCard{display:grid;width:min(1000px,calc(100vw - 24px));max-width:none;height:calc(var(--app-h) - 28px - var(--cluster-h,96px));max-height:none;
-  padding:14px;gap:12px;overflow:hidden;border-radius:32px;background:linear-gradient(170deg,#fffaf0,#eef3ff 60%,#f6efff);
+/* Reserve only the height by which the cluster overhangs the tabs row, and keep
+   the tab buttons clear of it horizontally. Reserving the cluster's whole height
+   squeezed the cards to 40px on a landscape phone -- the opposite of the point. */
+#paperSheet{padding:12px;background:#1d1f4acc}
+#paperTabs{padding-right:var(--tabs-inset,0px)}
+#paperCard{display:grid;width:min(1000px,calc(100vw - 24px));max-width:none;height:calc(var(--app-h) - 24px);max-height:none;
+  padding:14px;padding-top:calc(14px + var(--gallery-top,0px));
+  gap:12px;overflow:hidden;border-radius:32px;background:linear-gradient(170deg,#fffaf0,#eef3ff 60%,#f6efff);
   grid-template-columns:72px minmax(0,1fr) 72px;grid-template-rows:auto minmax(0,1fr) auto;
   grid-template-areas:"tabs tabs tabs" "prev grid next" "foot foot foot";animation:sheetIn .28s cubic-bezier(.2,1.4,.4,1)}
 #paperTabs{grid-area:tabs;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
-#paperTabs button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:0;min-height:68px;
+#paperTabs button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:0;min-height:var(--tabs-h);
   border:0;border-radius:20px;font-family:inherit;font-weight:800;font-size:14px;line-height:1.1;color:#39406a;cursor:pointer;padding:6px 2px;
   box-shadow:0 3px 0 #0000001a;transition:transform .15s}
 #paperTabs button b{font-size:30px;line-height:1}
@@ -352,26 +356,29 @@ body.pickingPaper #actions{pointer-events:auto}
 #paperFoot{grid-area:foot;display:flex;align-items:center;gap:12px}
 #paperFoot .closeSheet{width:auto;min-width:150px;min-height:62px;border-radius:22px;padding:0 22px;font-family:inherit;font-weight:800;font-size:18px;
   color:#39406a;background:#fff;box-shadow:0 4px 0 #0000001a}
-#paperPager{flex:1;display:flex;justify-content:center;gap:10px}
+#paperPager{flex:1;display:flex;justify-content:center;gap:10px;overflow:hidden}
 #paperPager i{width:14px;height:14px;border-radius:50%;background:#c9cde3}
 #paperPager i.on{background:#6554c0;transform:scale(1.3)}
 @keyframes sheetIn{from{transform:scale(.9);opacity:0}}
 @keyframes gridIn{from{transform:translateY(12px);opacity:0}}
 @media(max-width:600px),(max-height:500px){
-  #paperCard{padding:10px;gap:8px;border-radius:26px;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+  :root{--tabs-h:58px}
+  #paperCard{padding:10px;padding-top:calc(10px + var(--gallery-top,0px));gap:8px;border-radius:26px;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
     grid-template-rows:auto minmax(0,1fr) auto auto;grid-template-areas:"tabs tabs" "grid grid" "prev next" "foot foot"}
   .pageArrow{width:100%;height:58px;font-size:28px}
   .pageArrow:disabled{visibility:visible;opacity:.25!important}
-  #paperTabs{gap:5px}#paperTabs button{min-height:58px;font-size:11px;border-radius:16px}#paperTabs button b{font-size:24px}
+  #paperTabs{gap:5px}#paperTabs button{font-size:11px;border-radius:16px}#paperTabs button b{font-size:24px}
   #paperCard .grid{gap:10px}
   #paperFoot .closeSheet{min-height:56px;min-width:120px;font-size:16px}
+  #paperPager{gap:5px}#paperPager i{width:9px;height:9px}
 }
 @media(max-height:500px){
   #paperCard{grid-template-columns:64px minmax(0,1fr) 64px;grid-template-rows:auto minmax(0,1fr) auto;
     grid-template-areas:"tabs tabs tabs" "prev grid next" "foot foot foot"}
   .pageArrow{width:64px;height:min(120px,100%)}
   .pageArrow:disabled{visibility:hidden}
-  #paperTabs button{min-height:48px;flex-direction:row;gap:6px;font-size:13px}#paperTabs button b{font-size:20px}
+  :root{--tabs-h:48px}
+  #paperTabs button{flex-direction:row;gap:6px;font-size:13px}#paperTabs button b{font-size:20px}
   #paperFoot .closeSheet{min-height:48px}
 }
 
@@ -528,6 +535,10 @@ let phoneChoice='tools';
 function fitUI(){
   const H=viewH(), W=viewW(), r=document.documentElement.style;
   const compact=phoneLayout();
+  // A lifted cluster is pinned to stale coordinates, so put it back, lay out,
+  // then lift it again from its new place.
+  const relift=actionsLifted();
+  if(relift)dropActions();
   const dock=document.getElementById('phoneDock');
   if(dock.parentElement!==document.body)document.body.appendChild(dock);
   const changed=document.body.classList.contains('phone')!==compact;
@@ -550,8 +561,19 @@ function fitUI(){
   r.setProperty('--app-top',Math.round(vp ? vp.offsetTop : 0)+'px');
   applyStep(compact ? {toolW:56,toolH:64,sw:60,act:64,ico:28,cap:11,st:32} :
     {toolW:96,toolH:88,sw:80,act:96,ico:34,cap:13,st:38});
-  const cluster=document.getElementById('actions').getBoundingClientRect().height;
-  r.setProperty('--cluster-h',Math.round(cluster)+'px');
+  const cluster=document.getElementById('actions').getBoundingClientRect();
+  r.setProperty('--cluster-h',Math.round(cluster.height)+'px');
+  r.setProperty('--cluster-w',Math.round(cluster.width)+'px');
+  /* The gallery has to make room for the lifted cluster. Where the cluster is a
+     modest slice of the width it can share the tab row, and only its overhang
+     past that row costs the cards any height. On a narrow phone it is most of
+     the width, so insetting the tabs would crush them -- there it gets its own
+     band above the card instead. */
+  const tabsH=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--tabs-h'))||68;
+  const shareRow=cluster.width<=W*.45;
+  r.setProperty('--gallery-top',Math.round(shareRow?Math.max(0,cluster.height-tabsH):cluster.height)+'px');
+  r.setProperty('--tabs-inset',Math.round(shareRow?cluster.width+10:0)+'px');
+  if(relift)liftActions();
 }
 
 function copyOf(src){
@@ -580,7 +602,12 @@ function drawingBounds(){
   const origin=vp?vp.offsetTop:0;
   const railBox=rail.getBoundingClientRect();
   const paletteBox=bottom.getBoundingClientRect();
-  const top=document.getElementById('topRow').getBoundingClientRect().bottom-origin+8;
+  // While the gallery is open the cluster is lifted out of #topRow, which then
+  // measures short. Take whichever actually reaches further down, or the paper
+  // gets sized for a top bar that is only temporarily missing.
+  const rowBottom=document.getElementById('topRow').getBoundingClientRect().bottom;
+  const clusterBottom=document.getElementById('actions').getBoundingClientRect().bottom;
+  const top=Math.max(rowBottom,clusterBottom)-origin+8;
   if(phoneLayout()){
     const lower=document.getElementById('phoneDock').getBoundingClientRect().top-origin-8;
     return {x:8,y:top,width:viewW()-16,height:Math.max(40,lower-top)};
@@ -1708,16 +1735,27 @@ const history_ = (() => {
 function undoDepth(){return history_.depth();}
 
 /* Ten taps on Clean must not cost him ten undo slots, so a Clean that would
-   change nothing records nothing. Early exit means the common case (art
-   present) stops within a few rows; the full scan only happens when the page
-   really is blank. */
+   change nothing records nothing.
+
+   Reading the full canvas cost ~38ms and a fresh 20MB array per tap, on the one
+   path he is expected to mash. Scaling the artwork into a small scratch canvas
+   and reading that instead answers the same question from ~77KB: any mark a
+   child can make survives the downscale as non-zero alpha. A trace so faint it
+   vanishes at this scale is also one he cannot see, so treating it as blank
+   costs him nothing and keeps his undo history intact. */
+const EMPTY_PROBE=document.createElement('canvas');
+EMPTY_PROBE.width=160;EMPTY_PROBE.height=120;
+const emptyProbeCtx=EMPTY_PROBE.getContext('2d',{willReadFrequently:true});
 function artIsEmpty(){
   const W=art.width,H=art.height;
   if(!W||!H)return true;
-  let data;
-  try{data=actx.getImageData(0,0,W,H).data;}catch(err){return false;}
-  for(let i=3;i<data.length;i+=4)if(data[i])return false;
-  return true;
+  try{
+    emptyProbeCtx.clearRect(0,0,EMPTY_PROBE.width,EMPTY_PROBE.height);
+    emptyProbeCtx.drawImage(art,0,0,W,H,0,0,EMPTY_PROBE.width,EMPTY_PROBE.height);
+    const data=emptyProbeCtx.getImageData(0,0,EMPTY_PROBE.width,EMPTY_PROBE.height).data;
+    for(let i=3;i<data.length;i+=4)if(data[i])return false;
+    return true;
+  }catch(err){return false;}
 }
 
 function freshPage(){
@@ -2170,10 +2208,46 @@ const plainGrid = document.getElementById('plainGrid');
 const pictureGrid = document.getElementById('pictureGrid');
 let paperCategory='picture',paperPage=0;
 /* Six cards, never twelve. A two-year-old cannot pick out a silhouette from a
-   grid of tiny tiles, and he would rather tap a big arrow than squint. */
+   grid of tiny tiles, and he would rather tap a big arrow than squint.
+
+   Six is the ceiling, not a quota: on a short screen six rows' worth of chrome
+   leaves each card unreadable, so rows drop until every card clears
+   MIN_CARD_H. Clarity is the whole point; the count is a means to it. */
+const MIN_CARD_H=110, GRID_GAP=14;
+function galleryGridHeight(){
+  /* Measure the card and subtract the parts that are not the grid. Measuring the
+     grid element itself looked simpler but is circular: its height follows the
+     row count the PREVIOUS build chose, so the first open after a resize sized
+     itself from stale rows and rendered two cards where four fit. Tabs, footer
+     and arrows are all auto-sized and independent of the grid. */
+  const card=document.getElementById('paperCard');
+  const box=card.getBoundingClientRect();
+  if(box.height>8){
+    const cs=getComputedStyle(card);
+    const gap=parseFloat(cs.rowGap)||12;
+    const tabs=document.getElementById('paperTabs').getBoundingClientRect().height;
+    const foot=document.getElementById('paperFoot').getBoundingClientRect().height;
+    const prev=document.getElementById('paperPrev').getBoundingClientRect();
+    // Narrow portrait stretches the arrows across their own row; elsewhere they
+    // sit beside the grid and cost it no height.
+    const arrows=prev.width>80?prev.height+gap:0;
+    return box.height-(parseFloat(cs.paddingTop)||0)-(parseFloat(cs.paddingBottom)||0)
+           -tabs-foot-gap*2-arrows;
+  }
+  // First build runs before the sheet has ever been opened, so estimate.
+  const H=viewH(),short=H<=500,narrow=viewW()<=600;
+  const st=getComputedStyle(document.documentElement);
+  const top=parseFloat(st.getPropertyValue('--gallery-top'))||0;
+  const tabsH=short?48:narrow?58:68;
+  const arrowsRow=narrow&&!short?70:0;
+  return H-24-top-tabsH-(short?48:narrow?56:62)-(narrow?20:28)-24-arrowsRow;
+}
 function paperGridSize(){
   const portraitPhone=phoneLayout() && viewH()>viewW();
-  return portraitPhone?{cols:2,rows:3}:{cols:3,rows:2};
+  const cols=portraitPhone?2:3, maxRows=portraitPhone?3:2;
+  const avail=galleryGridHeight();
+  const rows=Math.max(1,Math.min(maxRows,Math.floor((avail+GRID_GAP)/(MIN_CARD_H+GRID_GAP))));
+  return {cols,rows};
 }
 function buildPaperSheet(){
   const groups={plain:PLAIN,picture:[{surprise:true},...PICTURES],pattern:PATTERNS,trace:TRACING};
@@ -2190,7 +2264,13 @@ function buildPaperSheet(){
   }
   document.querySelectorAll('#paperTabs button').forEach(b=>b.classList.toggle('on',b.dataset.category===paperCategory));
   const pager=document.getElementById('paperPager');
-  pager.innerHTML=Array.from({length:pages},(_,i)=>`<i class="${i===paperPage?'on':''}"></i>`).join('');
+  // Adaptive rows mean more pages on a small screen, and a dot per page would
+  // overflow the footer. He cannot count them anyway; they only say "there is
+  // more", so cap them and keep the current page always visible.
+  const DOTS=10;
+  const first=Math.max(0,Math.min(pages-DOTS,paperPage-Math.floor(DOTS/2)));
+  const shown=Math.min(pages,DOTS);
+  pager.innerHTML=Array.from({length:shown},(_,i)=>`<i class="${first+i===paperPage?'on':''}"></i>`).join('');
   pager.setAttribute('aria-label',`Page ${paperPage+1} of ${pages}`);
   document.getElementById('paperPrev').disabled=paperPage===0;
   document.getElementById('paperNext').disabled=paperPage===pages-1;
@@ -2264,7 +2344,12 @@ onTap(document.getElementById('phoneColors'),()=>openPhoneChoices('colors'));
 function openSheet(id){ finish();closeSheets(); document.getElementById(id).classList.add('open');
   // Always open on the first page: with six cards per page a remembered page
   // number would put the Surprise card and his familiar pictures out of sight.
-  if(id==='paperSheet'){paperPage=0;buildPaperSheet();}
+  if(id==='paperSheet'){
+    paperPage=0;buildPaperSheet();
+    // One settle pass, so a first-frame measurement can never leave the picker
+    // showing fewer cards than actually fit.
+    requestAnimationFrame(()=>{if(document.getElementById('paperSheet').classList.contains('open'))buildPaperSheet();});
+  }
   updateSheetToggles(); }
 function closeSheets(){
   if(sheetOpen())sheetClosedAt=performance.now();
@@ -2284,7 +2369,26 @@ function toggleSheet(id){
    z-index on a descendant can rise above the sheet -- and lifting #ui itself
    would carry the canvas above the backdrop. So the cluster moves out to the
    body while the gallery is open, the same trick #phoneDock already uses, and
-   goes back to the top row afterwards. Its listeners travel with it. */
+   goes back to the top row afterwards. Its listeners travel with it.
+
+   Lifted, it is position:fixed at measured coordinates, so anything that
+   relayouts must drop it, relayout, and lift it again -- otherwise a rotation
+   leaves it off-screen. fitUI does exactly that. */
+function actionsLifted(){return document.getElementById('actions').parentElement===document.body;}
+function liftActions(){
+  const panel=document.getElementById('actions');
+  if(panel.parentElement===document.body)return;
+  const r=panel.getBoundingClientRect();
+  document.body.appendChild(panel);
+  Object.assign(panel.style,{position:'fixed',left:Math.round(r.left)+'px',
+    top:Math.round(r.top)+'px',zIndex:'60',margin:'0'});
+}
+function dropActions(){
+  const panel=document.getElementById('actions');
+  if(panel.parentElement!==document.body)return;
+  panel.removeAttribute('style');
+  document.getElementById('topRow').appendChild(panel);
+}
 function updateSheetToggles(){
   const open=document.getElementById('paperSheet').classList.contains('open');
   const button=document.getElementById('btnPaper');
@@ -2293,15 +2397,12 @@ function updateSheetToggles(){
   button.setAttribute('aria-expanded',String(open));
   button.classList.toggle('sheetOpen',open);
   document.body.classList.toggle('pickingPaper',open);
-  if(open && panel.parentElement!==document.body){
-    const r=panel.getBoundingClientRect();
-    document.body.appendChild(panel);
-    Object.assign(panel.style,{position:'fixed',left:Math.round(r.left)+'px',
-      top:Math.round(r.top)+'px',zIndex:'60',margin:'0'});
-  }else if(!open && panel.parentElement===document.body){
-    panel.removeAttribute('style');
-    document.getElementById('topRow').appendChild(panel);
-  }
+  // Over the gallery these two show him nothing and sit where he mashes, so
+  // they come out of play until the paper is visible again.
+  const clean=document.getElementById('btnNew');
+  if(clean)clean.disabled=open;
+  document.getElementById('btnUndo').disabled=open||!undoDepth();
+  if(open)liftActions(); else dropActions();
 }
 document.querySelectorAll('.sheet').forEach(s => {
   // Tapping beside the page picker does nothing: little hands tap everywhere.
