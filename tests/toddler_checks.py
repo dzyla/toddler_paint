@@ -1,4 +1,4 @@
-"""Toddler-proofing: ghost taps, mashing, stay-in-lines help, and tracing rewards."""
+"""Toddler-proofing: instant taps, harmless mashing, stay-in-lines help, and tracing rewards."""
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -12,25 +12,27 @@ with sync_playwright() as p:
         errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
         page.goto(URL);page.click('#setupDone');page.wait_for_timeout(300)
         page.evaluate('soundOn=false')
-        # The tap that opens the picker must not close it or pick a page.
-        page.locator('#btnPaper').tap();page.wait_for_timeout(250)
+        # The picker opens on the tap that presses New page.
+        page.locator('#btnPaper').tap();page.wait_for_timeout(150)
         assert page.locator('#paperSheet').is_visible(),w
-        # An eager second tap right away lands on a tile but is ignored.
-        page.locator('[data-paper="fish"]').tap()
-        assert page.locator('#paperSheet').is_visible() and page.evaluate('paperId')=='butterfly',w
-        # Tapping beside the cards never closes the picker.
-        page.touchscreen.tap(3,h/2);page.wait_for_timeout(650)
-        assert page.locator('#paperSheet').is_visible(),w
-        page.locator('[data-paper="fish"]').tap();before=page.evaluate('artRevision')
-        # The same finger tapping again does not scribble on the new page.
-        page.touchscreen.tap(w/2,h/2)
-        assert page.evaluate('artRevision')==before,w
+        # An eager second tap on a card is honoured at once: no dead half-second.
+        page.locator('[data-paper="fish"]').tap();page.wait_for_timeout(150)
         assert page.locator('#paperSheet').is_hidden() and page.evaluate('paperId')=='fish',w
-        # Mashing Next picture advances once.
-        page.wait_for_timeout(650)
+        # Tapping beside the cards never closes the picker.
+        page.locator('#btnPaper').tap();page.wait_for_timeout(150)
+        page.touchscreen.tap(3,h/2);page.wait_for_timeout(150)
+        assert page.locator('#paperSheet').is_visible(),w
+        page.locator('[data-paper="cat"]').tap();before=page.evaluate('artRevision')
+        # The finger that just chose a page does not scribble on it.
+        page.wait_for_timeout(160)
+        assert page.evaluate('artRevision')==before,w
+        assert page.locator('#paperSheet').is_hidden() and page.evaluate('paperId')=='cat',w
+        # Three taps on Next picture advance three times: silence is what frustrates him.
+        page.wait_for_timeout(200)
         box=page.locator('#btnNext').bounding_box()
-        for _ in range(3):page.touchscreen.tap(box['x']+box['width']/2,box['y']+box['height']/2);page.wait_for_timeout(150)
-        assert page.evaluate('paperId')=='cat',(w,page.evaluate('paperId'))
+        for _ in range(3):
+            page.touchscreen.tap(box['x']+box['width']/2,box['y']+box['height']/2);page.wait_for_timeout(150)
+        assert page.evaluate('paperId')=='rocket',(w,page.evaluate('paperId'))
         assert not errors,errors
         page.close()
 
@@ -74,5 +76,62 @@ with sync_playwright() as p:
     assert page.evaluate('settings.stars')==1
     assert page.locator('#stars').is_visible() and page.locator('#starCount').inner_text()=='1'
     assert not errors,errors
+
+    # --- Task 2: the tap engine answers every tap ---
+    page=browser.new_page(viewport={'width':1024,'height':768},has_touch=True)
+    errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+    page.goto(URL);page.click('#setupDone');page.wait_for_timeout(300)
+    page.evaluate('soundOn=false')
+
+    # No cooldown attributes survive.
+    assert page.evaluate("document.querySelectorAll('[data-cooldown]').length")==0
+
+    # Ten rapid taps on a tool all register, none suppressed.
+    page.evaluate("()=>{window.toolCalls=0;const o=setTool;setTool=k=>{toolCalls++;o(k)}}")
+    box=page.locator('[data-tool="pencil"]').bounding_box()
+    cx,cy=box['x']+box['width']/2,box['y']+box['height']/2
+    for _ in range(10):
+        page.touchscreen.tap(cx,cy);page.wait_for_timeout(30)
+    assert page.evaluate('toolCalls')==10,page.evaluate('toolCalls')
+    assert page.evaluate('tool')=='pencil'
+
+    # One gesture fires one action: pointerdown activation must not double-fire
+    # alongside the browser's native click.
+    page.evaluate("()=>{window.toolCalls=0}")
+    page.locator('[data-tool="marker"]').tap();page.wait_for_timeout(150)
+    assert page.evaluate('toolCalls')==1,page.evaluate('toolCalls')
+    page.evaluate("()=>{window.toolCalls=0}")
+    page.locator('[data-tool="crayon"]').click();page.wait_for_timeout(150)
+    assert page.evaluate('toolCalls')==1,page.evaluate('toolCalls')
+
+    # Two fingers landing on two controls at once: both register, neither
+    # button stays stuck in .press.
+    page.evaluate("()=>{window.toolCalls=0}")
+    page.evaluate("""()=>{
+      const a=document.querySelector('[data-tool="pencil"]'),b=document.querySelector('[data-tool="spray"]');
+      const ra=a.getBoundingClientRect(),rb=b.getBoundingClientRect();
+      const send=(el,r,id,type)=>el.dispatchEvent(new PointerEvent(type,
+        {bubbles:true,pointerId:id,pointerType:'touch',clientX:r.left+r.width/2,clientY:r.top+r.height/2}));
+      a.setPointerCapture=()=>{};b.setPointerCapture=()=>{};
+      send(a,ra,21,'pointerdown');send(b,rb,22,'pointerdown');
+      send(a,ra,21,'pointerup');send(b,rb,22,'pointerup');
+    }""")
+    page.wait_for_timeout(300)
+    assert page.evaluate('toolCalls')==2,page.evaluate('toolCalls')
+    assert page.evaluate("document.querySelectorAll('.press').length")==0
+
+    # A tap equidistant between two adjacent action tiles selects neither.
+    gap=page.evaluate("""()=>{
+      const p=document.getElementById('btnPaper'),n=document.getElementById('btnNew');
+      const a=p.getBoundingClientRect(),b=n.getBoundingClientRect();
+      return [(a.right+b.left)/2,(a.top+a.bottom)/2];
+    }""")
+    assert page.evaluate('([x,y])=>resolveTapTarget(document.getElementById("actions"),x,y)===null',gap)
+
+    # An unambiguous near miss still snaps to the nearest tile.
+    near=page.evaluate("""()=>{const p=document.getElementById('btnPaper');
+      const r=p.getBoundingClientRect();return [r.left-12,(r.top+r.bottom)/2];}""")
+    assert page.evaluate('([x,y])=>resolveTapTarget(document.getElementById("actions"),x,y)?.id==="btnPaper"',near)
+    assert not errors,errors
     browser.close()
-    print('PASS: opening taps settle, beside-card taps ignored, no post-pick scribbles, mashing advances once, strokes stay in shapes, tracing earns stars')
+    print('PASS: instant taps, cards honoured at once, no post-pick scribbles, Next advances per tap, strokes stay in shapes, tracing earns stars, tap engine fires once per gesture, two-finger taps, ambiguous gaps refused')

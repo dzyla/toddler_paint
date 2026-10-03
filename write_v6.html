@@ -396,15 +396,15 @@ button:active,button.press{filter:brightness(.9)}
     <div class="panel" id="actions">
       <button class="b act" id="btnUndo"><span class="ico">↩️</span><span class="cap">Undo</span></button>
       <button class="b act" id="btnRedo"><span class="ico">↪️</span><span class="cap">Redo</span></button>
-      <button class="b act" id="btnPaper" data-cooldown="1000"><span class="ico">📄</span><span class="cap">New page</span></button>
-      <button class="b act" id="btnNew" data-cooldown="1000"><span class="ico">🧼</span><span class="cap">Clean</span></button>
+      <button class="b act" id="btnPaper"><span class="ico">📄</span><span class="cap">New page</span></button>
+      <button class="b act" id="btnNew"><span class="ico">🧼</span><span class="cap">Clean</span></button>
     </div>
   </div>
 
   <div class="panel" id="rail"></div>
 
   <div class="panel" id="side">
-    <button class="b" id="btnNext" aria-label="Next picture" data-cooldown="1000"><span class="ico">🖼️</span><span class="cap">Next picture</span></button>
+    <button class="b" id="btnNext" aria-label="Next picture"><span class="ico">🖼️</span><span class="cap">Next picture</span></button>
     <button class="b size" data-size="small"><i style="width:8px;height:8px"></i></button>
     <button class="b size on" data-size="medium"><i style="width:16px;height:16px"></i></button>
     <button class="b size" data-size="large"><i style="width:26px;height:26px"></i></button>
@@ -1771,71 +1771,126 @@ function chime(freq,type,volume=.07,length=.17){
   }catch(err){}
 }
 
+// Replaced in Task 3 by a movement-aware predicate.
+function drawingNow(){return activeId!==null;}
+
 /* ==================================================================
-   10. Touch controls
-   Large targets use completed taps so scrolling never selects paper or
-   clears artwork. Extra fingers cannot switch tools during a stroke.
+   10. Tap engine
+
+   A two-year-old taps immediately, repeatedly, and often slightly off
+   target. So controls act on pointerDOWN, under the finger, and no tap is
+   ever silently discarded. Resolution happens once, here; every control
+   then listens for one custom event.
+
+   The browser still delivers a native click after a touch or mouse
+   gesture. Because we already acted on pointerdown, that click would run
+   the action a second time, so clicks on engine-owned panels are
+   swallowed.
 =================================================================== */
-let completedTap=null,lastPointerType='mouse',sheetOpenedAt=-1e9,sheetClosedAt=-1e9;
-// A newly opened window ignores touch for a moment, so the leftover of the tap
-// that opened it (or an eager second tap) cannot pick a page or close it again.
-const SETTLE_MS=500,REPEAT_MS=600;
+const TAP_EVENT='toddlertap';
+const TAP_PANELS=['actions','rail','bottom','side','paperCard','phoneDock'];
+const SNAP_PX=40;          // how far outside a button a tap still counts
+const AMBIGUOUS=1.25;      // two candidates this close in distance: refuse
+let lastPointerType='mouse',sheetClosedAt=-1e9;
 document.addEventListener('pointerdown',e=>{lastPointerType=e.pointerType;},true);
-let settleSheet=null;
-function settling(){return lastPointerType!=='mouse' && performance.now()-sheetOpenedAt<SETTLE_MS && !!settleSheet && settleSheet.classList.contains('open');}
-for(const id of ['actions','rail','bottom','side','paperCard','phoneDock']){
+
+// Clean is the only destructive control, so it alone waits for a release.
+const UP_ONLY=new Set(['btnNew']);
+
+function distanceTo(el,x,y){
+  const r=el.getBoundingClientRect();
+  if(!r.width||!r.height||!el.offsetParent)return Infinity;
+  return Math.hypot(Math.max(r.left-x,0,x-r.right),Math.max(r.top-y,0,y-r.bottom));
+}
+// Exported for tests: which button a point belongs to, or null when a guess
+// would be a coin flip. Between Undo and Clean, nothing beats a wrong guess.
+function resolveTapTarget(panel,x,y){
+  let best=null,bestD=Infinity,runnerUp=Infinity;
+  for(const el of panel.querySelectorAll('button:not(:disabled):not([hidden])')){
+    const d=distanceTo(el,x,y);
+    if(d<bestD){runnerUp=bestD;bestD=d;best=el;}
+    else if(d<runnerUp)runnerUp=d;
+  }
+  if(!best||bestD>SNAP_PX)return null;
+  if(bestD>0 && runnerUp<=bestD*AMBIGUOUS)return null;
+  return best;
+}
+function pressFlash(button){
+  button.classList.remove('press');void button.offsetWidth;button.classList.add('press');
+  setTimeout(()=>button.classList.remove('press'),140);
+}
+function fireTap(button){
+  pressFlash(button);
+  button.dispatchEvent(new CustomEvent(TAP_EVENT,{bubbles:true}));
+}
+for(const id of TAP_PANELS){
   const panel=document.getElementById(id);
-  let tap=null;
+  const pending=new Map();   // pointerId -> button, so two fingers both count
   panel.addEventListener('pointerdown',e=>{
-    if(e.pointerType==='mouse'||e.target.closest('input'))return;
-    let button=e.target.closest('button');
-    if(!button){
-      // Shaky hands miss: a tap in a gap goes to the nearest button.
-      let nearest=26;
-      for(const candidate of panel.querySelectorAll('button:not(:disabled):not([hidden])')){
-        const r=candidate.getBoundingClientRect();
-        if(!r.width||!r.height||!candidate.offsetParent)continue;
-        const distance=Math.hypot(Math.max(r.left-e.clientX,0,e.clientX-r.right),Math.max(r.top-e.clientY,0,e.clientY-r.bottom));
-        if(distance<nearest){nearest=distance;button=candidate;}
-      }
-    }
-    if(!button||button.disabled||activeId!==null||tap)return;
+    // Forms keep native behaviour: the word-paper form lives inside paperCard,
+    // and swallowing its submit click would stop it ever submitting.
+    if(e.target.closest('input,textarea,select,form'))return;
+    if(drawingNow())return;
+    if(activeId!==null)finish();          // commit a resting finger's stroke
+    const button=e.target.closest('button')||resolveTapTarget(panel,e.clientX,e.clientY);
+    if(!button||button.disabled)return;
     e.preventDefault();
-    if(panel.closest('.sheet') && settling())return;
-    tap={button,id:e.pointerId,x:e.clientX,y:e.clientY};
-    try{button.setPointerCapture(e.pointerId);}catch(err){}
-    button.classList.add('press');
+    swallowNextClick(button);
+    if(UP_ONLY.has(button.id)){
+      pending.set(e.pointerId,button);
+      button.classList.add('press');
+      try{button.setPointerCapture(e.pointerId);}catch(err){}
+      return;
+    }
+    fireTap(button);
   });
   panel.addEventListener('pointerup',e=>{
-    if(!tap||tap.id!==e.pointerId)return;
-    const t=tap;tap=null;t.button.classList.remove('press');
-    const now=performance.now();
-    completedTap={panel,time:now};
-    // Slips while pressing still count; repeated mashing of one button does not.
-    if(Math.hypot(e.clientX-t.x,e.clientY-t.y)<=90 && activeId===null && now-(t.button._tapped||-1e9)>(t.button.dataset.cooldown||REPEAT_MS)){
-      t.button._tapped=now;e.preventDefault();t.button.click();
-    }
+    const button=pending.get(e.pointerId);
+    if(!button)return;
+    pending.delete(e.pointerId);
+    button.classList.remove('press');
+    // A generous slip: the release only has to land near where it started.
+    if(distanceTo(button,e.clientX,e.clientY)<=SNAP_PX*2)fireTap(button);
   });
-  const cancel=()=>{if(tap)tap.button.classList.remove('press');tap=null;};
-  panel.addEventListener('pointercancel',cancel);
-  panel.addEventListener('lostpointercapture',cancel);
+  const drop=e=>{
+    const button=pending.get(e.pointerId);
+    if(button){button.classList.remove('press');pending.delete(e.pointerId);}
+  };
+  panel.addEventListener('pointercancel',drop);
+  panel.addEventListener('lostpointercapture',drop);
 }
-// Touch taps above were already handled on pointerup. The browser still sends
-// a click afterwards, to whatever is now under the finger (often a window that
-// just opened). Swallow it, and any touch click on a window that just opened.
+// One gesture, one action. The native click that follows our pointerdown is
+// discarded; anything else on the page still clicks normally.
+const swallowed=new Map();
+function swallowNextClick(button){swallowed.set(button,performance.now());}
 document.addEventListener('click',e=>{
-  if(!e.isTrusted || e.detail===0)return;
-  const ghost=completedTap && lastPointerType!=='mouse' && performance.now()-completedTap.time<450;
-  if(ghost || (settling() && settleSheet.contains(e.target))){e.preventDefault();e.stopImmediatePropagation();}
+  if(!e.isTrusted)return;
+  for(const [button,when] of swallowed){
+    if(performance.now()-when>900){swallowed.delete(button);continue;}
+    if(button===e.target||button.contains(e.target)){
+      swallowed.delete(button);
+      e.preventDefault();e.stopImmediatePropagation();
+      return;
+    }
+  }
 },true);
+// Keyboard parity: a focused control answers Enter and Space like a tap.
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Enter'&&e.key!==' ')return;
+  const button=e.target.closest&&e.target.closest('button');
+  if(!button||button.disabled)return;
+  if(!TAP_PANELS.some(id=>document.getElementById(id).contains(button)))return;
+  e.preventDefault();fireTap(button);
+});
 function forgiving(container, sel, pick){
-  container.addEventListener('click',e=>{
-    if(activeId!==null)return;
+  container.addEventListener(TAP_EVENT,e=>{
+    if(drawingNow())return;
     const el=e.target.closest(sel);
     if(!el||!container.contains(el)||el.disabled)return;
     pick(el);
   });
 }
+function onTap(el,handler){el.addEventListener(TAP_EVENT,handler);}
 
 /* ==================================================================
    11. Interface
@@ -1948,8 +2003,8 @@ function setTool(key){
   chime(320 + TOOL_ORDER.indexOf(key)*38, 'triangle');
 }
 
-document.getElementById('btnNext').addEventListener('click', e => {
-  if(activeId!==null)return;
+onTap(document.getElementById('btnNext'), e => {
+  if(drawingNow())return;
   e.preventDefault();
   const favorites=['white','butterfly','fish','cat','dino','flower','rocket'];
   choosePaper({dataset:{paper:favorites[(favorites.indexOf(paperId)+1)%favorites.length]}});
@@ -1990,7 +2045,7 @@ function buildBottom(){
   }
   if(pages>1){
     const more=document.createElement('button');more.className='moreButton';more.id='moreColors';more.style.width=sw+'px';more.style.height=sw+'px';more.textContent='More ▶';more.setAttribute('aria-label',tool==='stamp'?'More stamps':'More colors');
-    more.addEventListener('click',()=>{if(activeId!==null)return;palettePage++;buildBottom();});bottom.appendChild(more);
+    onTap(more,()=>{if(drawingNow())return;palettePage++;buildBottom();});bottom.appendChild(more);
   }
   updatePhoneDock();
 }
@@ -2028,8 +2083,8 @@ forgiving(side, '.size', el => {
 
 const MIRROR = [{n:1,ico:'🦋',cap:'Off'},{n:2,ico:'🪞',cap:'Mirror'},
                 {n:4,ico:'🍀',cap:'Four'},{n:8,ico:'❄️',cap:'Snowflake'}];
-document.getElementById('btnMirror').addEventListener('click', e => {
-  if(activeId!==null)return;
+onTap(document.getElementById('btnMirror'), e => {
+  if(drawingNow())return;
   e.preventDefault();
   const next = MIRROR[(MIRROR.findIndex(m => m.n === symmetry)+1) % MIRROR.length];
   symmetry = next.n;
@@ -2105,9 +2160,12 @@ function buildPaperSheet(){
   document.getElementById('paperPrev').disabled=words||paperPage===0;
   document.getElementById('paperNext').disabled=words||paperPage===pages-1;
 }
-document.querySelectorAll('#paperTabs button').forEach(b=>b.addEventListener('click',()=>{if(paperCategory===b.dataset.category)return;paperCategory=b.dataset.category;paperPage=0;buildPaperSheet();chime(640,'triangle');}));
-document.getElementById('paperPrev').addEventListener('click',()=>{paperPage--;buildPaperSheet();chime(560,'triangle');});
-document.getElementById('paperNext').addEventListener('click',()=>{paperPage++;buildPaperSheet();chime(700,'triangle');});
+document.querySelectorAll('#paperTabs button').forEach(b=>onTap(b,()=>{
+  if(paperCategory===b.dataset.category){chime(500,'sine',.04);return;}
+  paperCategory=b.dataset.category;paperPage=0;buildPaperSheet();chime(640,'triangle');
+}));
+onTap(document.getElementById('paperPrev'),()=>{paperPage--;buildPaperSheet();chime(560,'triangle');});
+onTap(document.getElementById('paperNext'),()=>{paperPage++;buildPaperSheet();chime(700,'triangle');});
 buildPaperSheet();
 const choosePaper = el => {
   finish();history_.push();
@@ -2133,7 +2191,7 @@ document.getElementById('wordForm').addEventListener('submit',e=>{
   e.preventDefault();const word=document.getElementById('traceWords').value.trim();if(!word)return;
   choosePaper({dataset:{paper:'trace-name'}});traceText=word.slice(0,16);drawPaper();buildPaperSheet();scheduleSave();
 });
-document.querySelectorAll('.closeSheet').forEach(b=>b.addEventListener('click',closeSheets));
+document.querySelectorAll('.closeSheet').forEach(b=>{b.addEventListener('click',closeSheets);onTap(b,closeSheets);});
 document.getElementById('gRedo').addEventListener('click',()=>{history_.redo();closeSheets();});
 document.getElementById('gMirror').addEventListener('click',()=>{document.getElementById('btnMirror').click();closeSheets();});
 for(const el of document.querySelectorAll('.size'))el.setAttribute('aria-label',el.dataset.size+' brush');
@@ -2150,7 +2208,7 @@ function updatePhoneDock(){
   document.getElementById('phoneColors').setAttribute('aria-expanded',String(open&&phoneChoice==='colors'));
 }
 function openPhoneChoices(choice){
-  if(activeId!==null)return;
+  if(drawingNow())return;
   // Repeated taps keep the tray open; it closes when something is chosen or with ✕.
   if(document.getElementById('phoneTray').classList.contains('open') && phoneChoice===choice)return;
   phoneChoice=choice;
@@ -2158,12 +2216,11 @@ function openPhoneChoices(choice){
   document.getElementById('phoneTrayTitle').textContent=choice==='tools'?'Choose a tool':tool==='stamp'?'Choose a stamp':'Choose a color';
   openSheet('phoneTray');updatePhoneDock();
 }
-document.getElementById('phoneTools').addEventListener('click',()=>openPhoneChoices('tools'));
-document.getElementById('phoneColors').addEventListener('click',()=>openPhoneChoices('colors'));
+onTap(document.getElementById('phoneTools'),()=>openPhoneChoices('tools'));
+onTap(document.getElementById('phoneColors'),()=>openPhoneChoices('colors'));
 /* --- sheets --- */
 function openSheet(id){ finish();closeSheets(); document.getElementById(id).classList.add('open');
-  // Only the child's windows settle; grown-up windows respond at once.
-  sheetOpenedAt=performance.now();settleSheet=['paperSheet','phoneTray'].includes(id)?document.getElementById(id):null;if(id==='paperSheet')buildPaperSheet(); }
+  if(id==='paperSheet')buildPaperSheet(); }
 function closeSheets(){
   if(sheetOpen())sheetClosedAt=performance.now();
   document.querySelectorAll('.sheet').forEach(s => s.classList.remove('open'));updatePhoneDock();
@@ -2171,7 +2228,7 @@ function closeSheets(){
 function sheetOpen(){ return !!document.querySelector('.sheet.open'); }
 document.querySelectorAll('.sheet').forEach(s => {
   // Tapping beside the page picker does nothing: little hands tap everywhere.
-  s.addEventListener('pointerdown', e => { if (e.target === s && s.id!=='paperSheet' && !settling()){e.preventDefault();closeSheets();} });
+  s.addEventListener('pointerdown', e => { if (e.target === s && s.id!=='paperSheet'){e.preventDefault();closeSheets();} });
 });
 
 /* --- grown-up badge, hold to open --- */
