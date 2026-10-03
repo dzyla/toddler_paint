@@ -307,8 +307,13 @@ button:active,button.press{filter:brightness(.9)}
 /* ---------------- toddler page picker ----------------
    Big colorful cards, big arrows beside the grid, and the Back button at the
    bottom: far from the New page button, so a double tap cannot close it. */
-#paperSheet{padding:12px;background:#1d1f4acc}
-#paperCard{display:grid;width:min(1000px,calc(100vw - 24px));max-width:none;height:calc(var(--app-h) - 24px);max-height:none;
+/* The button he pressed must stay under his finger, so the gallery makes room
+   for the action cluster instead of covering it. */
+body.pickingPaper #topRow{z-index:60}
+body.pickingPaper #actions{pointer-events:auto}
+#btnPaper.sheetOpen{box-shadow:0 0 0 5px var(--ink),0 6px 16px rgba(10,15,45,.3)}
+#paperSheet{padding:12px;padding-top:calc(16px + var(--cluster-h,96px));background:#1d1f4acc}
+#paperCard{display:grid;width:min(1000px,calc(100vw - 24px));max-width:none;height:calc(var(--app-h) - 28px - var(--cluster-h,96px));max-height:none;
   padding:14px;gap:12px;overflow:hidden;border-radius:32px;background:linear-gradient(170deg,#fffaf0,#eef3ff 60%,#f6efff);
   grid-template-columns:72px minmax(0,1fr) 72px;grid-template-rows:auto minmax(0,1fr) auto;
   grid-template-areas:"tabs tabs tabs" "prev grid next" "foot foot foot";animation:sheetIn .28s cubic-bezier(.2,1.4,.4,1)}
@@ -396,7 +401,7 @@ button:active,button.press{filter:brightness(.9)}
     <div class="panel" id="actions">
       <button class="b act" id="btnUndo"><span class="ico">↩️</span><span class="cap">Undo</span></button>
       <button class="b act" id="btnRedo"><span class="ico">↪️</span><span class="cap">Redo</span></button>
-      <button class="b act" id="btnPaper"><span class="ico">📄</span><span class="cap">New page</span></button>
+      <button class="b act" id="btnPaper" aria-controls="paperSheet" aria-expanded="false"><span class="ico">📄</span><span class="cap">New page</span></button>
       <button class="b act" id="btnNew"><span class="ico">🧼</span><span class="cap">Clean</span></button>
     </div>
   </div>
@@ -553,6 +558,8 @@ function fitUI(){
   r.setProperty('--app-top',Math.round(vp ? vp.offsetTop : 0)+'px');
   applyStep(compact ? {toolW:56,toolH:64,sw:56,act:56,ico:28,cap:11,st:32} :
     {toolW:96,toolH:88,sw:76,act:80,ico:34,cap:13,st:38});
+  const cluster=document.getElementById('actions').getBoundingClientRect().height;
+  r.setProperty('--cluster-h',Math.round(cluster)+'px');
 }
 
 function copyOf(src){
@@ -2129,7 +2136,7 @@ forgiving(actions, '.act', el => {
   const id = el.id;
   if (id === 'btnUndo') history_.undo();
   else if (id === 'btnRedo') history_.redo();
-  else if (id === 'btnPaper') openSheet('paperSheet');
+  else if (id === 'btnPaper') toggleSheet('paperSheet');
   else if (id === 'btnNew'){freshPage();toast('Fresh page · Undo brings it back');}
 });
 
@@ -2201,13 +2208,16 @@ const choosePaper = el => {
     closeSheets(); chime(520,'sine',.04); return;
   }
   finish();history_.push();
+  // Put the gallery away first: it parents the action cluster to the body, and
+  // measuring with a short top row would size the paper taller than its space.
+  closeSheets();
   const area=drawingBounds();
   designWidth=1000;designHeight=Math.round(1000*area.height/area.width);
   setDocumentSize(designWidth,designHeight);sizeLayers();
   paperId = el.dataset.paper;
   drawPaper();
   document.body.style.background = paperId === 'night' ? '#0d0f24' : '#14163a';
-  buildPaperSheet(); closeSheets(); chime(520,'sine'); scheduleSave();
+  buildPaperSheet(); chime(520,'sine'); scheduleSave();
   newPageFx();
 };
 function makeSurprise(){
@@ -2252,12 +2262,44 @@ onTap(document.getElementById('phoneTools'),()=>openPhoneChoices('tools'));
 onTap(document.getElementById('phoneColors'),()=>openPhoneChoices('colors'));
 /* --- sheets --- */
 function openSheet(id){ finish();closeSheets(); document.getElementById(id).classList.add('open');
-  if(id==='paperSheet')buildPaperSheet(); }
+  if(id==='paperSheet')buildPaperSheet(); updateSheetToggles(); }
 function closeSheets(){
   if(sheetOpen())sheetClosedAt=performance.now();
   document.querySelectorAll('.sheet').forEach(s => s.classList.remove('open'));updatePhoneDock();
+  updateSheetToggles();
 }
 function sheetOpen(){ return !!document.querySelector('.sheet.open'); }
+/* He asked for a switch, not a door that only opens. Reading the class
+   rather than a tracked flag means Back and Escape keep the switch in step. */
+function toggleSheet(id){
+  const sheet=document.getElementById(id);
+  if(sheet.classList.contains('open')){closeSheets();chime(430,'sine');}
+  else openSheet(id);
+  updateSheetToggles();
+}
+/* #ui is position:fixed, which makes it a stacking context in Chrome, so no
+   z-index on a descendant can rise above the sheet -- and lifting #ui itself
+   would carry the canvas above the backdrop. So the cluster moves out to the
+   body while the gallery is open, the same trick #phoneDock already uses, and
+   goes back to the top row afterwards. Its listeners travel with it. */
+function updateSheetToggles(){
+  const open=document.getElementById('paperSheet').classList.contains('open');
+  const button=document.getElementById('btnPaper');
+  const panel=document.getElementById('actions');
+  if(!button||!panel)return;
+  button.setAttribute('aria-expanded',String(open));
+  button.classList.toggle('sheetOpen',open);
+  document.body.classList.toggle('pickingPaper',open);
+  if(open && panel.parentElement!==document.body){
+    const r=panel.getBoundingClientRect();
+    document.body.appendChild(panel);
+    Object.assign(panel.style,{position:'fixed',left:Math.round(r.left)+'px',
+      top:Math.round(r.top)+'px',zIndex:'60',margin:'0'});
+  }else if(!open && panel.parentElement===document.body){
+    panel.removeAttribute('style');
+    document.getElementById('topRow').appendChild(panel);
+  }
+}
 document.querySelectorAll('.sheet').forEach(s => {
   // Tapping beside the page picker does nothing: little hands tap everywhere.
   s.addEventListener('pointerdown', e => { if (e.target === s && s.id!=='paperSheet'){e.preventDefault();closeSheets();} });

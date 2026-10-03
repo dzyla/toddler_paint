@@ -229,5 +229,48 @@ with sync_playwright() as p:
     assert page.evaluate('()=>undoDepth()')==depth,(page.evaluate('()=>undoDepth()'),depth)
     assert page.evaluate('artRevision')==revision
     assert not errors,errors
+
+    # --- Task 5: New page is an on/off toggle ---
+    page=browser.new_page(viewport={'width':1024,'height':768},has_touch=True)
+    errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+    page.goto(URL);page.click('#setupDone');page.wait_for_timeout(300)
+    page.evaluate('soundOn=false')
+
+    paper=page.locator('#btnPaper')
+    paper.tap();page.wait_for_timeout(200)
+    assert page.locator('#paperSheet').is_visible()
+    # The button he pressed stays visible and reachable above the gallery.
+    assert paper.is_visible()
+    assert page.evaluate("""()=>{const b=document.getElementById('btnPaper');
+      const r=b.getBoundingClientRect();
+      const hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
+      return hit===b || b.contains(hit);}""")
+    assert paper.get_attribute('aria-expanded')=='true'
+    # Second tap closes it.
+    paper.tap();page.wait_for_timeout(200)
+    assert page.locator('#paperSheet').is_hidden()
+    assert paper.get_attribute('aria-expanded')=='false'
+    # Third tap reopens immediately: no cooldown.
+    paper.tap();page.wait_for_timeout(200)
+    assert page.locator('#paperSheet').is_visible()
+    # The toggle reads the DOM, so closing by Back keeps it in step.
+    page.locator('#paperFoot .closeSheet').tap();page.wait_for_timeout(200)
+    assert page.locator('#paperSheet').is_hidden()
+    assert paper.get_attribute('aria-expanded')=='false'
+    paper.tap();page.wait_for_timeout(200)
+    assert page.locator('#paperSheet').is_visible()
+    page.locator('#paperFoot .closeSheet').tap();page.wait_for_timeout(200)
+    assert page.locator('#paperSheet').is_hidden()
+
+    # Choosing a page must size the paper against the real top bar. While the
+    # gallery is open the cluster is parented to the body, so measuring then
+    # would report a short top row and make the page too tall.
+    page.locator('#btnPaper').tap();page.wait_for_timeout(200)
+    page.locator('[data-paper="dog"]').tap();page.wait_for_timeout(400)
+    via_gallery=page.evaluate('designHeight')
+    page.evaluate("choosePaper({dataset:{paper:'fish'}})");page.wait_for_timeout(400)
+    direct=page.evaluate('designHeight')
+    assert abs(via_gallery-direct)<=1,(via_gallery,direct)
+    assert not errors,errors
     browser.close()
     print('PASS: instant taps, cards honoured at once, no post-pick scribbles, Next advances per tap, strokes stay in shapes, tracing earns stars, tap engine fires once per gesture, two-finger taps, ambiguous gaps refused')
