@@ -359,5 +359,51 @@ with sync_playwright() as p:
     assert page.evaluate("!!document.getElementById('btnRedo')")==False
     assert page.evaluate("!!document.getElementById('btnMirror')")==False
     assert not errors,errors
+
+    # --- Task 8: a tap that changes nothing still answers ---
+    page=browser.new_page(viewport={'width':1024,'height':768},has_touch=True)
+    errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+    page.goto(URL);page.click('#setupDone');page.wait_for_timeout(300)
+    page.evaluate('soundOn=false')
+    page.evaluate("()=>{window.chimes=[];const o=chime;window.chime=(f,ty,v,l)=>{chimes.push([f,v===undefined?.07:v]);o(f,ty,v,l)}}")
+
+    # Re-tapping the tool already chosen: press animation and a softer chime.
+    page.evaluate("setTool('crayon')")
+    page.evaluate('()=>{chimes.length=0}')
+    page.locator('[data-tool="crayon"]').tap();page.wait_for_timeout(250)
+    assert page.evaluate('chimes.length')>=1,page.evaluate('chimes')
+    quiet=page.evaluate('chimes[chimes.length-1][1]')
+
+    page.evaluate('()=>{chimes.length=0}')
+    page.locator('[data-tool="pencil"]').tap();page.wait_for_timeout(250)
+    loud=page.evaluate('chimes[chimes.length-1][1]')
+    assert quiet<loud,(quiet,loud)
+
+    # Re-tapping the colour already chosen is answered the same way.
+    page.evaluate("()=>{const sw=document.querySelector('.sw.on');window.currentColor=sw&&sw.dataset.color}")
+    current=page.evaluate('currentColor')
+    page.evaluate('()=>{chimes.length=0}')
+    page.locator(f'[data-color="{current}"]').tap();page.wait_for_timeout(250)
+    quiet_c=page.evaluate('chimes[chimes.length-1][1]')
+    page.evaluate('()=>{chimes.length=0}')
+    other='#1e88e5' if current!='#1e88e5' else '#e53935'
+    page.locator(f'[data-color="{other}"]').tap();page.wait_for_timeout(250)
+    loud_c=page.evaluate('chimes[chimes.length-1][1]')
+    assert quiet_c<loud_c,(quiet_c,loud_c)
+
+    # Every engine-owned tap flashes .press, changed or not.
+    flashed=page.evaluate("""()=>new Promise(resolve=>{
+      const b=document.querySelector('[data-tool="pencil"]');
+      let seen=false;
+      const mo=new MutationObserver(()=>{if(b.classList.contains('press'))seen=true});
+      mo.observe(b,{attributes:true,attributeFilter:['class']});
+      const r=b.getBoundingClientRect();
+      b.setPointerCapture=()=>{};
+      b.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerId:41,pointerType:'touch',
+        clientX:r.left+r.width/2,clientY:r.top+r.height/2}));
+      setTimeout(()=>{mo.disconnect();resolve(seen)},100);
+    })""")
+    assert flashed==True
+    assert not errors,errors
     browser.close()
     print('PASS: instant taps, cards honoured at once, no post-pick scribbles, Next advances per tap, strokes stay in shapes, tracing earns stars, tap engine fires once per gesture, two-finger taps, ambiguous gaps refused')

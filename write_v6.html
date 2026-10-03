@@ -2027,8 +2027,9 @@ function setTool(key){
   document.getElementById('stName').textContent = BRUSHES[key].name;
   buildBottom();
   updateToolPage(true);
+  // A tap that changes nothing still has to feel answered, just quieter.
   if(changed){pop(toolBtn[key]);pop(document.getElementById('phoneTools'));}
-  chime(320 + TOOL_ORDER.indexOf(key)*38, 'triangle');
+  chime(320 + TOOL_ORDER.indexOf(key)*38, 'triangle', changed?.07:.03);
 }
 
 onTap(document.getElementById('btnNext'), e => {
@@ -2084,13 +2085,14 @@ forgiving(bottom, '.sw,.st', el => {
 });
 
 function setColor(col){
+  const changed = color !== col;
   color = col;
   if (tool === 'eraser') setTool('crayon');
   else buildBottom();
   drawAllSamples();
   document.getElementById('stDot').style.background = col;
   pop(bottom.querySelector('.sw.on'));pop(document.getElementById('phoneColors'));
-  chime(500,'sine');
+  chime(500,'sine',changed?.07:.03);
 }
 function setStamp(s){
   stampChar = s;
