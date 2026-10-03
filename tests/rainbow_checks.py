@@ -1,10 +1,13 @@
 """Rainbow should retain bright color during continuous and repeated scribbling."""
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from app_target import APP_URL
 from playwright.sync_api import sync_playwright
 with sync_playwright() as p:
     browser=p.chromium.launch()
     page=browser.new_page(viewport={'width':1366,'height':900})
-    page.goto((Path(__file__).resolve().parents[1]/'write_v5.html').as_uri())
+    page.goto(APP_URL)
     page.click('#setupDone')
     page.evaluate("choosePaper({dataset:{paper:'white'}});setTool('rainbow');soundOn=false")
     def point(x,y):

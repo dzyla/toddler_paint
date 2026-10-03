@@ -1,7 +1,10 @@
 """Optional regression suite. Requires Python Playwright and installed Chromium."""
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from app_target import APP_URL
 from playwright.sync_api import sync_playwright
-URL=(Path(__file__).resolve().parents[1]/'write_v5.html').as_uri()
+URL=APP_URL
 with sync_playwright() as p:
     browser=p.chromium.launch(headless=True)
     page=browser.new_page(viewport={'width':1280,'height':900},accept_downloads=True)
@@ -174,11 +177,11 @@ with sync_playwright() as p:
     context=browser.new_context(viewport={'width':390,'height':844},has_touch=True,is_mobile=True,offline=True)
     touch=context.new_page();touch.goto(URL);touch.locator('#setupDone').tap();touch.wait_for_timeout(200)
     for key in touch.evaluate('TOOL_ORDER'):
-        touch.locator('#phoneTools').tap()
+        touch.locator('#phoneTools').tap();touch.wait_for_timeout(650)
         assert touch.locator('#rail .tool:visible').count()==12
-        touch.locator(f'[data-tool="{key}"]').tap()
+        touch.locator(f'[data-tool="{key}"]').tap();touch.wait_for_timeout(650)
         assert touch.evaluate('tool')==key
-    touch.locator('#btnPaper').tap();touch.locator('[data-category="trace"]').tap();touch.locator('#paperNext').tap()
+    touch.locator('#btnPaper').tap();touch.wait_for_timeout(650);touch.locator('[data-category="trace"]').tap();touch.wait_for_timeout(650);touch.locator('#paperNext').tap()
     assert touch.locator('#paperCard').evaluate('(el)=>el.scrollHeight<=el.clientHeight+2')
     context.close()
     # Retina vectors and previews use adequate backing resolution and preserve circles.
