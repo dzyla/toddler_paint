@@ -372,10 +372,11 @@ with sync_playwright() as p:
         if not phone:
             side=page.evaluate("()=>[...document.querySelectorAll('#side button')]"
                                ".filter(b=>b.offsetParent).map(b=>b.id||b.dataset.size)")
-            assert side==['btnNext','small','medium','large'],(vw_,vh_,side)
+            assert side==['btnNext','small','medium','large','btnMirror'],(vw_,vh_,side)
     page.set_viewport_size({'width':1024,'height':768});page.wait_for_timeout(300)
     assert page.evaluate("!!document.getElementById('btnRedo')")==False
-    assert page.evaluate("!!document.getElementById('btnMirror')")==False
+    # Mirror is his again: it is the most fun thing in the app to discover.
+    assert page.evaluate("!!document.getElementById('btnMirror')")==True
     assert not errors,errors
 
     # --- Task 8: a tap that changes nothing still answers ---
@@ -580,6 +581,36 @@ with sync_playwright() as p:
     ids=page.evaluate('PICTURES.map(p=>p.id)')
     assert len(ids)==len(set(ids)),[i for i in ids if ids.count(i)>1]
     assert len(ids)==55,len(ids)
+    assert not errors,errors
+
+    # --- Mirror cycles from the child's own button ---
+    page=browser.new_page(viewport={'width':1280,'height':900},has_touch=True)
+    errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+    page.goto(URL);page.click('#setupDone');page.wait_for_timeout(300)
+    page.evaluate('soundOn=false')
+    assert page.evaluate('symmetry')==1
+    seen=[]
+    for expected in [2,4,8,1]:
+        page.locator('#btnMirror').tap();page.wait_for_timeout(150)
+        assert page.evaluate('symmetry')==expected,(expected,page.evaluate('symmetry'))
+        seen.append(page.evaluate("document.querySelector('#btnMirror .ico').textContent"))
+    # Each setting looks different, so he can tell which one he is on.
+    assert len(set(seen))==4,seen
+    # The grown-up copy stays in step with his.
+    page.locator('#btnMirror').tap();page.wait_for_timeout(150)
+    assert page.evaluate('symmetry')==2
+    assert page.evaluate("document.querySelector('#gMirror .ico').textContent")==\
+           page.evaluate("document.querySelector('#btnMirror .ico').textContent")
+    # And it still actually mirrors: a stroke on one side marks the other.
+    page.evaluate("choosePaper({dataset:{paper:'white'}});setTool('marker');symmetry=2")
+    page.wait_for_timeout(300)
+    hit=page.locator('#hit').bounding_box()
+    page.mouse.move(hit['x']+hit['width']*.3,hit['y']+hit['height']*.4);page.mouse.down()
+    page.mouse.move(hit['x']+hit['width']*.3+40,hit['y']+hit['height']*.4+30,steps=10)
+    page.mouse.up();page.wait_for_timeout(250)
+    assert page.evaluate("()=>{const d=actx.getImageData(0,0,art.width,art.height).data;"
+                         "let l=0,r=0;for(let y=0;y<art.height;y+=4)for(let x=0;x<art.width;x+=4){"
+                         "if(d[(y*art.width+x)*4+3]>0){x<art.width/2?l++:r++;}}return l>20&&r>20;}")
     assert not errors,errors
     browser.close()
     print('PASS: instant taps, cards honoured at once, no post-pick scribbles, Next advances per tap, strokes stay in shapes, tracing earns stars, tap engine fires once per gesture, two-finger taps, ambiguous gaps refused')

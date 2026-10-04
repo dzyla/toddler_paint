@@ -423,6 +423,7 @@ body.pickingPaper #actions{pointer-events:auto}
     <button class="b size" data-size="small"><i style="width:8px;height:8px"></i></button>
     <button class="b size on" data-size="medium"><i style="width:16px;height:16px"></i></button>
     <button class="b size" data-size="large"><i style="width:26px;height:26px"></i></button>
+    <button class="b act" id="btnMirror" aria-label="Mirror magic"><span class="ico">🦋</span><span class="cap">Off</span></button>
   </div>
 
   <div class="panel" id="bottom"></div>
@@ -561,6 +562,17 @@ function fitUI(){
   r.setProperty('--app-top',Math.round(vp ? vp.offsetTop : 0)+'px');
   applyStep(compact ? {toolW:56,toolH:64,sw:60,act:64,ico:28,cap:11,st:32} :
     {toolW:96,toolH:88,sw:80,act:96,ico:34,cap:13,st:38});
+  /* The right edge only gets the band between the top bar and the palette.
+     Five buttons do not fit there on a short laptop, and overflowing pushed
+     Next picture off the top, so wrap into a second column when needed. */
+  const sidePanel2=document.getElementById('side');
+  sidePanel2.style.gridTemplateColumns='';
+  if(sidePanel2.parentElement===document.getElementById('ui')){
+    const act=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--actD'))||80;
+    const fits=Math.max(1,Math.floor((sidePanel2.clientHeight+7)/(act+7)));
+    const cols=Math.max(1,Math.ceil(sidePanel2.querySelectorAll('button').length/fits));
+    if(cols>1)sidePanel2.style.gridTemplateColumns=`repeat(${cols},var(--actD))`;
+  }
   const cluster=document.getElementById('actions').getBoundingClientRect();
   r.setProperty('--cluster-h',Math.round(cluster.height)+'px');
   r.setProperty('--cluster-w',Math.round(cluster.width)+'px');
@@ -2438,15 +2450,21 @@ forgiving(side, '.size', el => {
 
 const MIRROR=[{n:1,ico:'🦋',cap:'Off'},{n:2,ico:'🪞',cap:'Mirror'},
               {n:4,ico:'🍀',cap:'Four'},{n:8,ico:'❄️',cap:'Snowflake'}];
+/* Mirror is the most fun thing in here to stumble on, so it is his control,
+   not a grown-up setting. Both copies show the same state. */
 function cycleMirror(){
   const next=MIRROR[(MIRROR.findIndex(m=>m.n===symmetry)+1)%MIRROR.length];
   symmetry=next.n;
-  const b=document.getElementById('gMirror');
-  b.querySelector('.ico').textContent=next.ico;
-  b.querySelector('.cap').textContent=next.n===1?'Mirror off':next.cap;
+  for(const id of ['btnMirror','gMirror']){
+    const b=document.getElementById(id);
+    if(!b)continue;
+    b.querySelector('.ico').textContent=next.ico;
+    b.querySelector('.cap').textContent=id==='gMirror'&&next.n===1?'Mirror off':next.cap;
+  }
   toast(next.n===1?'Mirror off':next.cap+' magic');
   chime(400+next.n*40,'triangle');
 }
+onTap(document.getElementById('btnMirror'),()=>{if(drawingNow())return;cycleMirror();});
 
 /* --- actions --- */
 const actions = document.getElementById('actions');
